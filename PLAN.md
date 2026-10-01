@@ -4,6 +4,50 @@ Juego para la exposición de **Amazon RDS con PostgreSQL**: unas 30 personas ent
 
 ---
 
+## 0. Versión 2 · Modo carrera, nombres en el mapa, AR y diseño nuevo
+
+### Reglas del juego
+| Regla | Cómo funciona | Dónde vive |
+|---|---|---|
+| Rondas con cronómetro | El administrador inicia una ronda de N minutos desde `/admin/`; el mapa queda en blanco y todos los celulares muestran la cuenta regresiva | `controlar_ronda()` y `fase_ronda()` en `05_rondas.sql` |
+| Países ilimitados | `max_paises_por_jugador = 0` | tabla `config` |
+| Robos en cadena | Tocar un país de otro jugador te lo quedas al instante, sin protección (`proteccion_segundos = 0`, ajustable en `/admin/`) | `reclamar_pais()` bloquea la fila del país con `FOR UPDATE`, así dos robos simultáneos no chocan |
+| Ganador | El que tenga más países al terminar; en empate, quien llegó primero a esa cantidad | vista `ranking` y `ordenarRanking()` en el navegador |
+| Hora justa para todos | Cada respuesta trae la hora del servidor (`ahora`) y el celular corrige su reloj | `juego.js` (`desfase`) |
+| Reinicio total | `TRUNCATE reclamos, eventos, jugadores RESTART IDENTITY`: vacía las tablas y regresa los `SERIAL` a 1 en un solo paso | `reiniciar_juego()` |
+| Modos | `libre` (sin tiempo, para practicar), `espera` (mapa en blanco, nadie puede reclamar), `jugando`, `terminada` (automática al llegar a la hora de fin) | `config.modo` |
+
+### Movilidad en el celular, versión carrera
+- **Un toque conquista o roba.** En una carrera, abrir una ficha y luego pulsar un botón es demasiado lento. Girar el globo nunca conquista nada, porque el toque solo cuenta si el dedo se movió menos de 10 px.
+- Tocar un país tuyo abre su ficha, con la opción de liberarlo.
+- **Nombres sobre el mapa:** cada país conquistado muestra el nombre de su dueño. Las etiquetas que quedan detrás del globo o que se enciman se ocultan; tienen prioridad las tuyas y los países grandes, y al acercar el globo aparecen más.
+- **Cintillo tipo noticiero** con lo que pasa («Ana le quitó Brasil a Luis»). Si te roban, el celular vibra.
+- Durante la ronda, el celular pregunta cada 1.5 s en lugar de cada 2.5 s.
+- **Marcador fijo abajo:** tu lugar, los primeros 3 y barras de progreso. Se abre para ver a todos.
+
+### Realidad aumentada (Android)
+| Antes | Ahora |
+|---|---|
+| El globo aparecía fijo frente a la cara | **Se coloca sobre una mesa o el piso**: el celular detecta superficies (WebXR *hit-test*), aparece un círculo y lo tocas. Si no encuentra superficie en 8 s, lo pone frente a ti |
+| Solo se giraba con botones ⟲ ⟳ | **Arrastrar con un dedo** gira e inclina; **pellizcar con dos dedos** cambia el tamaño |
+| Sin nombres | **Nombres de los dueños** flotando sobre cada país |
+| Para reclamar había que tocar el país y luego un botón | Un toque conquista o roba, igual que en el celular |
+| — | Botón **Recolocar**, cronómetro visible arriba y avisos dentro de la AR |
+
+### Diseño: por qué se ve así
+La versión anterior tenía los rasgos típicos de una interfaz generada por IA: fondo azul marino, efecto de vidrio esmerilado, botones de píldora y letras tipo máquina de escribir en naranja. La nueva dirección es **«noche electoral»**, inspirada en los mapas de cobertura de elecciones en televisión:
+- **Mapa político en blanco y gris**: el color **solo** lo ponen los jugadores. Por eso se quitaron de la paleta 7 colores pálidos que se confundían con la tierra libre.
+- **Tipografía de marcador**: *Big Shoulders Display*, condensada y en mayúsculas, para números, cronómetro y nombres; *Instrument Sans* para el texto.
+- **Un solo color de acento**: rojo «en vivo», reservado para el cronómetro y el indicador de conexión.
+- **Esquinas rectas, líneas de 1–2 px, sombras sólidas** tipo impresión. Nada de vidrio ni degradados.
+- **Fondo de «mesa de mapas»** con retícula de puntos, y meridianos y paralelos en el globo.
+- El proyector se ve como una pantalla de televisión: cronómetro gigante, marcador con barras y QR.
+
+### Administración separada
+El panel ahora vive en **`/admin/`**, una dirección aparte con inicio de sesión. La contraseña se valida contra `ADMIN_KEY` en la Lambda. La página del juego no tiene ningún enlace hacia él.
+
+---
+
 ## 1. La restricción que decide la arquitectura
 
 **GitHub Pages solo publica archivos estáticos** (HTML, CSS, JS). No ejecuta código de servidor. Y un navegador **no puede conectarse directo a PostgreSQL**:

@@ -70,7 +70,8 @@ function centro(geom) {
       mejor = Math.abs(a) < 1e-9 ? { area: 0, lng: r[0][0], lat: r[0][1] } : { area: Math.abs(a), lng: cx / (6 * a), lat: cy / (6 * a) };
     }
   }
-  return { lat: Math.round(mejor.lat * 100) / 100, lng: Math.round(mejor.lng * 100) / 100 };
+  // area: tamaño aproximado (en grados²) del pedazo más grande; decide qué etiquetas se muestran primero.
+  return { lat: Math.round(mejor.lat * 100) / 100, lng: Math.round(mejor.lng * 100) / 100, area: Math.round(mejor.area * 10) / 10 };
 }
 
 const faltan = [];
@@ -89,7 +90,7 @@ const paises = origen.features.map((f) => {
 fs.writeFileSync(new URL('docs/data/paises.geojson', raiz), JSON.stringify({ type: 'FeatureCollection', features: paises }));
 
 const sql = (t) => `'${String(t).replace(/'/g, "''")}'`;
-const filas = paises.map(({ properties: p }) => `  (${sql(p.iso)}, ${sql(p.nombre)}, ${sql(p.continente)}, ${p.lat}, ${p.lng})`);
+const filas = paises.map(({ properties: p }) => `  (${sql(p.iso)}, ${sql(p.nombre)}, ${sql(p.continente)}, ${p.lat}, ${p.lng})`); // area solo va al mapa
 fs.writeFileSync(new URL('sql/02_paises.sql', raiz),
 `-- 02 · Países del mapa (generado por herramientas/preparar-datos.mjs; no editar a mano)
 -- ${paises.length} países de Natural Earth 1:110m. Ejecutar después de 01_esquema.sql.

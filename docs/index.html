@@ -3,100 +3,119 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#070D1A">
-<meta name="description" content="Reclama países en un globo 3D. Los datos viven en Amazon RDS con PostgreSQL.">
+<meta name="theme-color" content="#121417">
+<meta name="description" content="Carrera por conquistar el mundo. Cada país que reclamas se guarda en Amazon RDS con PostgreSQL.">
 <title>Globo RDS</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600;700&family=JetBrains+Mono:wght@500&display=swap">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;700;800;900&family=Instrument+Sans:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="css/app.css">
 </head>
 <body>
 
-<div id="globo" class="globo" role="application" aria-label="Globo terráqueo 3D: arrastra para girar, pellizca para acercar, toca un país para elegirlo"></div>
-
 <header class="barra">
-  <div id="yo-chip" class="chip" hidden>
-    <span class="chip-punto" id="yo-punto"></span>
-    <span class="chip-nombre" id="yo-nombre"></span>
-    <span class="chip-cuenta mono" id="yo-cuenta"></span>
-  </div>
-  <div id="conexion" class="conexion" data-estado="conectando" role="status">
-    <span class="conexion-punto"></span><span id="conexion-texto">Conectando…</span>
+  <a class="marca" href="./" aria-label="Globo RDS, inicio">GLOBO<span>/</span>RDS</a>
+  <div class="barra-der">
+    <span id="conexion" class="vivo" data-estado="conectando" role="status"><i></i><span id="conexion-texto">Conectando</span></span>
+    <button type="button" id="btn-buscar" class="icono" aria-controls="panel-buscar" aria-expanded="false" aria-label="Buscar país">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/></svg>
+    </button>
+    <a id="btn-vr" class="icono texto" href="vr.html" aria-label="Modo realidad virtual y aumentada">AR</a>
   </div>
 </header>
 
-<nav class="acciones" aria-label="Acciones">
-  <button type="button" id="btn-buscar" class="boton-redondo" aria-controls="panel-buscar" aria-expanded="false">Buscar</button>
-  <button type="button" id="btn-ranking" class="boton-redondo" aria-controls="panel-ranking" aria-expanded="false">Ranking</button>
-  <a id="btn-vr" class="boton-redondo" href="vr.html">VR / AR</a>
-</nav>
+<section id="cronometro" class="cronometro" data-fase="libre" aria-live="polite">
+  <div class="crono-principal">
+    <span id="crono-etiqueta" class="crono-etiqueta">Modo libre</span>
+    <span id="crono-tiempo" class="crono-tiempo">—</span>
+  </div>
+  <p id="crono-detalle" class="crono-detalle">Conquista todos los países que puedas</p>
+  <div class="crono-barra" aria-hidden="true"><span id="crono-progreso"></span></div>
+</section>
+
+<div id="globo" class="globo" role="application" aria-label="Globo terráqueo: arrastra para girar, pellizca para acercar, toca un país libre para conquistarlo"></div>
+<div id="etiquetas" class="etiquetas" aria-hidden="true"></div>
 
 <section id="panel-buscar" class="panel" hidden aria-label="Buscar país">
   <div class="panel-cabeza">
     <label for="buscar-input">Buscar país</label>
     <button type="button" class="cerrar" data-cerrar="panel-buscar" aria-label="Cerrar búsqueda">×</button>
   </div>
-  <input id="buscar-input" type="search" placeholder="Escribe: México, Japón…" autocomplete="off" enterkeyhint="search">
-  <ul id="buscar-resultados" class="lista"></ul>
+  <input id="buscar-input" type="search" placeholder="México, Japón, Kenia…" autocomplete="off" enterkeyhint="search">
+  <ul id="buscar-resultados" class="lista-paises"></ul>
 </section>
 
-<section id="panel-ranking" class="panel" hidden aria-label="Ranking">
-  <div class="panel-cabeza">
-    <h2>Ranking</h2>
-    <button type="button" class="cerrar" data-cerrar="panel-ranking" aria-label="Cerrar ranking">×</button>
-  </div>
-  <p class="nota" id="ranking-resumen"></p>
-  <ol id="ranking-lista" class="lista ranking"></ol>
-</section>
+<div id="cintillo" class="cintillo" aria-live="polite" hidden></div>
 
-<section id="hoja" class="hoja" aria-live="polite">
-  <div class="hoja-asa" aria-hidden="true"></div>
-  <div id="hoja-vacia" class="hoja-vacia">
-    <p><b>Toca un país</b> para ver quién es su dueño y reclamarlo.</p>
-    <p class="nota">Arrastra para girar · pellizca para acercar</p>
-  </div>
-  <div id="hoja-pais" class="hoja-pais" hidden>
-    <div class="hoja-fila">
-      <div>
-        <p class="eyebrow" id="hoja-continente"></p>
-        <h2 id="hoja-nombre"></h2>
-      </div>
-      <button type="button" class="cerrar" id="hoja-cerrar" aria-label="Quitar selección">×</button>
+<section id="ficha" class="ficha" hidden aria-live="polite">
+  <div class="ficha-cabeza">
+    <div>
+      <p class="ficha-continente" id="ficha-continente"></p>
+      <h2 id="ficha-nombre"></h2>
     </div>
-    <p id="hoja-dueno" class="hoja-dueno"></p>
-    <button type="button" id="hoja-accion" class="boton-principal"></button>
+    <button type="button" class="cerrar" id="ficha-cerrar" aria-label="Cerrar">×</button>
   </div>
+  <p id="ficha-dueno" class="ficha-dueno"></p>
+  <button type="button" id="ficha-accion" class="boton" hidden></button>
 </section>
 
-<div id="avisos" class="avisos" aria-live="polite"></div>
+<section id="marcador" class="marcador" aria-label="Marcador">
+  <button type="button" id="marcador-alternar" class="marcador-cabeza" aria-expanded="false" aria-controls="marcador-lista">
+    <span>Marcador</span>
+    <span id="marcador-resumen" class="marcador-resumen"></span>
+    <span class="marcador-flecha" aria-hidden="true"></span>
+  </button>
+  <ol id="marcador-lista" class="tabla"></ol>
+  <p id="marcador-yo" class="marcador-yo" hidden></p>
+</section>
+
+<div id="resultado" class="resultado" hidden role="dialog" aria-modal="true" aria-labelledby="resultado-titulo">
+  <div class="resultado-caja">
+    <p class="resultado-eyebrow">Fin de la ronda</p>
+    <h2 id="resultado-titulo">Ganador</h2>
+    <p id="resultado-ganador" class="resultado-ganador"></p>
+    <p id="resultado-dato" class="resultado-dato"></p>
+    <ol id="resultado-podio" class="tabla tabla-oscura"></ol>
+    <button type="button" id="resultado-cerrar" class="boton boton-claro">Ver el mapa</button>
+  </div>
+</div>
 
 <div id="registro" class="registro" hidden>
   <form id="form-registro" class="registro-caja" novalidate>
-    <p class="eyebrow">Amazon RDS · PostgreSQL</p>
-    <h1>Globo RDS</h1>
-    <p id="registro-intro">Escribe tu nombre y elige un color. Cada color es de una sola persona.</p>
-    <label for="reg-nombre">Tu nombre</label>
+    <p class="registro-sello">Acreditación de jugador</p>
+    <h1>GLOBO<span>/</span>RDS</h1>
+    <p id="registro-intro" class="registro-intro">Gana quien conquiste más países antes de que termine el tiempo. Cada color es de una sola persona.</p>
+    <label for="reg-nombre" class="campo-etiqueta">Tu nombre</label>
     <input id="reg-nombre" name="nombre" maxlength="20" autocomplete="nickname" autocapitalize="words" enterkeyhint="done" required>
     <fieldset>
-      <legend>Tu color <span class="nota" id="reg-libres"></span></legend>
+      <legend class="campo-etiqueta">Tu color <span id="reg-libres"></span></legend>
       <div id="reg-colores" class="colores" role="radiogroup"></div>
     </fieldset>
     <p id="reg-error" class="error" role="alert" hidden></p>
-    <button type="submit" id="reg-enviar" class="boton-principal">Entrar al juego</button>
+    <button type="submit" id="reg-enviar" class="boton">Entrar al juego</button>
   </form>
 </div>
 
 <aside id="proyector" class="proyector" hidden>
-  <p class="eyebrow">Escanea para jugar</p>
-  <div id="qr" class="qr"></div>
-  <p class="mono pequena" id="qr-url"></p>
-  <h2>Ranking</h2>
-  <ol id="proyector-ranking" class="lista ranking"></ol>
-  <h2>Últimos movimientos</h2>
-  <ol id="proyector-eventos" class="lista eventos"></ol>
+  <div class="proy-crono" id="proy-crono" data-fase="libre">
+    <span class="vivo-rojo"><i></i>En vivo</span>
+    <span id="proy-etiqueta" class="proy-etiqueta">Modo libre</span>
+    <span id="proy-tiempo" class="proy-tiempo">—</span>
+  </div>
+  <h2 class="proy-titulo">Marcador</h2>
+  <ol id="proy-ranking" class="tabla tabla-grande"></ol>
+  <h2 class="proy-titulo">Últimos movimientos</h2>
+  <ol id="proy-eventos" class="eventos"></ol>
+  <div class="proy-qr">
+    <div id="qr" class="qr"></div>
+    <div>
+      <p class="proy-qr-titulo">Escanea para jugar</p>
+      <p id="qr-url" class="proy-qr-url"></p>
+    </div>
+  </div>
 </aside>
 
-<div id="cargando" class="cargando"><p>Cargando el mundo…</p></div>
+<div id="cargando" class="cargando"><p>Cargando el mapa…</p></div>
 
 <script src="https://cdn.jsdelivr.net/npm/globe.gl@2/dist/globe.gl.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>

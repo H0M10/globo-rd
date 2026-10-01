@@ -1,24 +1,47 @@
-/* Capa de interfaz de la página VR/AR (se suma a app.css) */
-.ui-vr { position: fixed; inset: 0; pointer-events: none; }
-.ui-vr > * { pointer-events: auto; }
-.ui-vr .barra { pointer-events: none; }
-.ui-vr .barra > * { pointer-events: auto; }
+/* Página AR/VR: se suma a app.css. Dentro de AR la capa #ui va encima de la cámara. */
+.escena { position: fixed; inset: 0; touch-action: none; }
+.escena canvas { display: block; }
+.ui-xr { position: fixed; inset: 0; pointer-events: none; z-index: 2; }
+.ui-xr > *:not(.ar-gestos) { pointer-events: auto; }
+.ui-xr .barra { pointer-events: auto; }
+.ar-gestos { position: fixed; inset: 0; pointer-events: auto; touch-action: none; }
+.ui-xr .cintillo, .ui-xr .ar-indicacion { pointer-events: none; } /* no tapan los toques al globo */
 
-.vr-inicio {
+.xr-crono { display: inline-flex; align-items: baseline; gap: 6px; margin-right: 8px; font-family: var(--display); font-weight: 800; font-size: 15px; text-transform: uppercase; letter-spacing: .04em; color: #C4C9CF; }
+.xr-crono b { font-size: 22px; color: #fff; font-variant-numeric: tabular-nums; }
+.xr-crono[data-fase="jugando"] b { color: #FF5A4D; }
+
+.xr-inicio {
   position: fixed; left: 12px; right: 12px; bottom: calc(env(safe-area-inset-bottom, 0px) + 12px);
-  margin: 0 auto; max-width: 520px;
-  background: var(--superficie); border: 1px solid var(--linea); border-radius: 20px;
-  padding: 18px; display: flex; flex-direction: column; gap: 10px;
-  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  max-width: 480px; margin: 0 auto;
+  background: var(--papel); border: 1px solid var(--tinta); box-shadow: 6px 6px 0 var(--tinta);
+  padding: 16px 18px 18px; display: flex; flex-direction: column; gap: 12px;
 }
-.vr-inicio h1 { font-size: 24px; }
-.vr-botones { display: flex; flex-direction: column; gap: 8px; }
+.xr-inicio h1 { font-family: var(--display); font-weight: 900; font-size: clamp(40px, 12vw, 56px); line-height: .88; text-transform: uppercase; }
+.xr-yo { font-size: 15px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.xr-yo a { color: var(--tinta); font-weight: 700; }
+.xr-botones { display: flex; flex-direction: column; gap: 8px; }
+.xr-ayuda { list-style: none; margin: 0; padding: 10px 0 0; border-top: 1px solid var(--regla); display: grid; gap: 4px; font-size: 14px; color: var(--tinta-2); }
+.xr-ayuda b { font-family: var(--display); font-weight: 800; font-size: 16px; text-transform: uppercase; letter-spacing: .03em; color: var(--tinta); }
+.xr-soporte { font-size: 13px; color: var(--gris); }
+
+.ar-indicacion {
+  position: fixed; left: 12px; right: 12px; top: calc(var(--alto-barra) + 10px);
+  max-width: 420px; margin: 0 auto; text-align: center;
+  background: var(--tinta); color: #fff; padding: 10px 14px;
+  font-weight: 600; font-size: 15px;
+}
+.ar-indicacion b { font-family: var(--display); font-weight: 800; font-size: 18px; text-transform: uppercase; letter-spacing: .03em; }
 
 .ar-controles {
-  position: fixed; left: 0; right: 0; top: calc(env(safe-area-inset-top, 0px) + 64px);
-  display: flex; justify-content: center; gap: 10px;
+  position: fixed; left: 12px; right: 12px; bottom: calc(env(safe-area-inset-bottom, 0px) + 12px);
+  max-width: 420px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
 }
+.pagina-xr .ficha { bottom: calc(env(safe-area-inset-bottom, 0px) + 76px); }
+.pagina-xr .cintillo { bottom: calc(env(safe-area-inset-bottom, 0px) + 76px); }
+body.pagina-xr:not(.en-xr) .cintillo { bottom: calc(env(safe-area-inset-bottom, 0px) + 330px); }
+body.pagina-xr.con-ficha .cintillo { bottom: calc(env(safe-area-inset-bottom, 0px) + 190px); }
 
-/* Mientras hay una sesión inmersiva, solo quedan visibles los controles de AR y la hoja */
-body.en-xr .vr-inicio,
-body.en-xr #vr-volver { display: none !important; }
+/* Durante la sesión AR desaparece la tarjeta de inicio */
+body.en-xr .xr-inicio { display: none !important; }
+body.en-xr .marca { pointer-events: none; }

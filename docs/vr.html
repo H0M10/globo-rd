@@ -3,10 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#070D1A">
-<title>Globo RDS · VR</title>
+<meta name="theme-color" content="#121417">
+<title>Globo RDS · AR y VR</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600;700&family=JetBrains+Mono:wght@500&display=swap">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;700;800;900&family=Instrument+Sans:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="css/app.css">
 <link rel="stylesheet" href="css/vr.css">
 <script type="importmap">
@@ -20,52 +21,60 @@
 }
 </script>
 </head>
-<body>
+<body class="pagina-xr">
 
-<div id="escena" class="globo" aria-label="Globo en 3D para realidad virtual y aumentada"></div>
+<div id="escena" class="escena" aria-label="Globo en 3D para realidad aumentada y virtual"></div>
 
-<!-- Esta capa también se muestra DENTRO de la realidad aumentada (WebXR DOM Overlay) -->
-<div id="ui" class="ui-vr">
+<!-- Esta capa también se ve DENTRO de la realidad aumentada (WebXR DOM Overlay) -->
+<div id="ui" class="ui-xr">
+  <div id="ar-gestos" class="ar-gestos" hidden></div>
+
   <header class="barra">
-    <a href="index.html" class="boton-redondo" id="vr-volver">← Volver</a>
-    <div id="conexion" class="conexion" data-estado="conectando" role="status">
-      <span class="conexion-punto"></span><span id="conexion-texto">Conectando…</span>
+    <a class="marca" href="./" id="xr-volver" aria-label="Volver al globo">GLOBO<span>/</span>RDS</a>
+    <div class="barra-der">
+      <span id="xr-crono" class="xr-crono" data-fase="libre"><span id="xr-crono-etiqueta">Libre</span> <b id="xr-crono-tiempo"></b></span>
+      <span id="conexion" class="vivo" data-estado="conectando" role="status"><i></i><span id="conexion-texto">Conectando</span></span>
     </div>
   </header>
 
-  <section id="vr-inicio" class="vr-inicio">
-    <p class="eyebrow">Globo RDS · WebXR</p>
-    <h1>Realidad virtual y aumentada</h1>
-    <p id="vr-yo" class="nota"></p>
-    <div class="vr-botones">
-      <button type="button" id="btn-vr" class="boton-principal" hidden>Entrar a realidad virtual</button>
-      <button type="button" id="btn-ar" class="boton-principal" hidden>Ver el globo en mi cuarto (AR)</button>
+  <section id="xr-inicio" class="xr-inicio">
+    <p class="registro-sello">Modo inmersivo</p>
+    <h1>Pon el mundo<br>sobre la mesa</h1>
+    <p id="xr-yo" class="xr-yo"></p>
+    <div class="xr-botones">
+      <button type="button" id="btn-ar" class="boton" hidden>Ver en mi cuarto (AR)</button>
+      <button type="button" id="btn-vr" class="boton secundario" hidden>Entrar a realidad virtual</button>
     </div>
-    <p id="vr-soporte" class="nota"></p>
+    <ul class="xr-ayuda">
+      <li><b>Toca</b> un país para conquistarlo o robarlo</li>
+      <li><b>Arrastra</b> con un dedo para girar el globo</li>
+      <li><b>Pellizca</b> con dos dedos para agrandarlo</li>
+    </ul>
+    <p id="xr-soporte" class="xr-soporte"></p>
   </section>
 
-  <section id="vr-hoja" class="hoja" hidden>
-    <div class="hoja-fila">
+  <p id="ar-indicacion" class="ar-indicacion" hidden></p>
+
+  <section id="ficha" class="ficha" hidden aria-live="polite">
+    <div class="ficha-cabeza">
       <div>
-        <p class="eyebrow" id="vr-continente"></p>
-        <h2 id="vr-nombre"></h2>
+        <p class="ficha-continente" id="ficha-continente"></p>
+        <h2 id="ficha-nombre"></h2>
       </div>
-      <button type="button" class="cerrar" id="vr-cerrar" aria-label="Quitar selección">×</button>
+      <button type="button" class="cerrar" id="ficha-cerrar" aria-label="Cerrar">×</button>
     </div>
-    <p id="vr-dueno" class="hoja-dueno"></p>
-    <button type="button" id="vr-accion" class="boton-principal"></button>
+    <p id="ficha-dueno" class="ficha-dueno"></p>
   </section>
 
   <div id="ar-controles" class="ar-controles" hidden>
-    <button type="button" class="boton-redondo" id="ar-izq" aria-label="Girar a la izquierda">⟲</button>
-    <button type="button" class="boton-redondo" id="ar-salir">Salir de AR</button>
-    <button type="button" class="boton-redondo" id="ar-der" aria-label="Girar a la derecha">⟳</button>
+    <button type="button" class="boton secundario" id="ar-colocar">Recolocar</button>
+    <button type="button" class="boton" id="ar-salir">Salir</button>
   </div>
 
-  <div id="avisos" class="avisos" aria-live="polite"></div>
+  <div id="cintillo" class="cintillo" aria-live="polite" hidden></div>
 </div>
 
-<div id="cargando" class="cargando"><p>Cargando el mundo…</p></div>
+<div id="cargando" class="cargando"><p>Cargando el mapa…</p></div>
 
 <script src="js/config.js"></script>
 <script type="module" src="js/vr.js"></script>

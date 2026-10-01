@@ -1,6 +1,13 @@
 # Globo RDS
 
-Juego multijugador para la exposición de **Amazon RDS con PostgreSQL**: cada persona entra desde su celular con su nombre y un color único, reclama países en un globo 3D (también en VR/AR), y todo se guarda en **RDS for PostgreSQL**.
+Carrera multijugador para la exposición de **Amazon RDS con PostgreSQL**: cada persona entra desde su celular con su nombre y un color único y conquista (o roba) todos los países que pueda en un globo 3D antes de que se acabe el tiempo. Gana quien tenga más países al final. Todo se guarda en **RDS for PostgreSQL**. También funciona en realidad aumentada.
+
+| Pantalla | Dirección |
+|---|---|
+| Jugar (celulares) | https://h0m10.github.io/globo-rd/ |
+| Proyector con QR | https://h0m10.github.io/globo-rd/?proyector |
+| Realidad aumentada / virtual | https://h0m10.github.io/globo-rd/vr.html |
+| **Administración** (con contraseña) | https://h0m10.github.io/globo-rd/admin/ |
 
 - **Página:** GitHub Pages (carpeta `docs/`)
 - **API:** AWS Lambda (carpeta `api/`)
@@ -11,8 +18,8 @@ Juego multijugador para la exposición de **Amazon RDS con PostgreSQL**: cada pe
 globo-rds/
 ├── docs/               ← lo que publica GitHub Pages
 │   ├── index.html      ← globo para celular (y ?proyector para la pantalla grande)
-│   ├── vr.html         ← modo realidad virtual / aumentada
-│   ├── admin.html      ← reiniciar el juego y cambiar reglas
+│   ├── vr.html         ← modo realidad aumentada / virtual
+│   ├── admin/          ← panel de administración con inicio de sesión (rondas, reinicio)
 │   ├── js/config.js    ← AQUÍ va la URL de tu Lambda
 │   └── data/paises.geojson
 ├── api/                ← código de la Lambda (NO se publica en Pages)
@@ -30,7 +37,8 @@ globo-rds/
    1. `sql/01_esquema.sql` → crea tablas, paleta y funciones.
    2. `sql/02_paises.sql` → carga los 177 países.
    3. `sql/03_usuario_app.sql` → **antes de ejecutarlo**, cambia `CAMBIA_ESTA_CONTRASENA` por una contraseña fuerte. Crea el usuario `globo_app`. Anota esa contraseña.
-4. Comprueba: `SELECT count(*) FROM paises;` debe dar **177**, y `SELECT count(*) FROM colores;` debe dar **36**.
+   4. `sql/05_rondas.sql` → **modo carrera**: rondas con cronómetro, países sin límite, robos, nueva paleta y reinicio de contadores.
+4. Comprueba: `SELECT count(*) FROM paises;` debe dar **177**, `SELECT count(*) FROM colores;` debe dar **36** y `SELECT fase_ronda();` debe dar **libre**.
 
 ## Paso 2 · Probar en tu laptop (opcional, pero recomendado)
 
@@ -50,6 +58,8 @@ globo-rds/
 2. En la consola de AWS, con la región **Virginia del Norte (us-east-1)**, abre **CloudShell** (ícono `>_` en la barra de arriba).
 3. **Acciones › Cargar archivo**: sube `api\function.zip`. Repite y sube `api\desplegar-cloudshell.sh`.
 4. Escribe `bash desplegar-cloudshell.sh` y presiona Enter. Al final muestra la URL de la función.
+
+> **Para actualizar la API** después de cambiar el código: repite los pasos 1 a 4. Si CloudShell pregunta si reemplazar los archivos, di que sí. El script detecta que la función ya existe y solo sube el código nuevo; la URL no cambia.
 
 ### Opción manual: desde la consola de Lambda
 1. Empaqueta el código:
@@ -113,11 +123,12 @@ API_URL: 'https://xxxxxxxx.lambda-url.us-east-1.on.aws',
 ## Paso 6 · El día de la exposición
 
 1. Enciende la base de RDS 15 minutos antes.
-2. Abre `admin.html`, escribe tu `ADMIN_KEY` y pulsa **Reiniciar juego** (o ejecuta `sql/99_reiniciar.sql`).
-3. En la computadora del proyector abre `index.html?proyector`: muestra el globo, el QR, el ranking y los últimos movimientos.
-4. Tus compañeros escanean el QR, escriben su nombre, eligen color y reclaman países.
-5. En pgAdmin muestra las consultas de `sql/04_consultas_demo.sql` mientras juegan.
-6. Al terminar: detén o borra la base.
+2. Entra a **/admin/** con tu contraseña (`ADMIN_KEY`) y pulsa **Reiniciar juego**: borra todo y regresa los contadores a 1.
+3. En la computadora del proyector abre **?proyector**: muestra el globo, el QR, el cronómetro, el marcador y los últimos movimientos.
+4. Tus compañeros escanean el QR, escriben su nombre y eligen color. Mientras tanto el juego está en **modo libre** para practicar.
+5. En **/admin/**, pulsa **Iniciar ronda** (3 minutos, por ejemplo). El mapa queda en blanco, arranca el cronómetro en todos los celulares y gana quien tenga más países al final.
+6. En pgAdmin muestra las consultas de `sql/04_consultas_demo.sql` y la vista `SELECT * FROM ranking;` mientras juegan.
+7. Al terminar: detén o borra la base.
 
 ---
 

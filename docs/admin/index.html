@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#121417">
+<title>Globo RDS · Administración</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;700;800;900&family=Instrument+Sans:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="../css/app.css">
+<style>
+  body { overflow: auto; }
+  .control { max-width: 560px; margin: 0 auto; padding: calc(var(--alto-barra) + 18px) 14px 48px; display: flex; flex-direction: column; gap: 18px; }
+  .caja { background: var(--papel); border: 1px solid var(--tinta); box-shadow: 5px 5px 0 var(--tinta); padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+  .caja h2 { font-family: var(--display); font-weight: 800; font-size: 24px; text-transform: uppercase; letter-spacing: .02em; }
+  .nota { font-size: 14px; color: var(--gris); }
+  .campo { display: flex; flex-direction: column; gap: 4px; }
+  .campo input { min-height: 48px; padding: 0 2px; border: 0; border-bottom: 2px solid var(--tinta); border-radius: 0; background: transparent; font-size: 20px; }
+  .fila { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .estado { background: var(--tinta); color: #fff; padding: 14px 16px; display: grid; grid-template-columns: 1fr auto; align-items: end; gap: 4px; }
+  .estado span { font-family: var(--display); font-weight: 800; font-size: 26px; text-transform: uppercase; }
+  .estado b { font-family: var(--display); font-weight: 900; font-size: 56px; line-height: .85; font-variant-numeric: tabular-nums; }
+  .estado small { grid-column: 1 / -1; color: #C4C9CF; font-size: 13px; }
+  .estado[data-fase="jugando"] b { color: #FF5A4D; }
+  .peligro { background: var(--vivo) !important; color: #fff !important; }
+  .salida { font-size: 15px; font-weight: 600; min-height: 22px; }
+  .salida[data-tipo="ok"] { color: var(--ok); }
+  .salida[data-tipo="error"] { color: var(--vivo); }
+  .marcar { display: flex; gap: 8px; align-items: center; font-size: 15px; }
+  .marcar input { width: 20px; height: 20px; accent-color: var(--vivo); }
+  .enlaces { display: grid; gap: 8px; font-size: 15px; }
+  .enlaces a { color: var(--tinta); font-weight: 600; }
+  .salir { background: none; border: 0; color: #fff; font: 600 13px var(--texto); letter-spacing: .08em; text-transform: uppercase; padding: 0 10px; min-height: 44px; }
+  .acceso { max-width: 420px; margin: 0 auto; padding: calc(var(--alto-barra) + 40px) 14px 40px; }
+  .acceso h1 { font-family: var(--display); font-weight: 900; font-size: 56px; line-height: .88; text-transform: uppercase; }
+</style>
+</head>
+<body>
+<header class="barra">
+  <a class="marca" href="../" aria-label="Ir al juego">GLOBO<span>/</span>RDS</a>
+  <div class="barra-der">
+    <span class="vivo" id="conexion" data-estado="conectando"><i></i><span>Admin</span></span>
+    <button type="button" class="salir" id="salir" hidden>Cerrar sesión</button>
+  </div>
+</header>
+
+<!-- ===== Inicio de sesión ===== -->
+<main id="acceso" class="acceso">
+  <form id="form-acceso" class="caja">
+    <p class="registro-sello">Solo administración</p>
+    <h1>Panel de<br>control</h1>
+    <label class="campo campo-etiqueta" for="clave">Contraseña de administrador
+      <input id="clave" type="password" autocomplete="current-password" required>
+    </label>
+    <p id="acceso-error" class="salida" data-tipo="error" role="alert"></p>
+    <button type="submit" class="boton" id="entrar">Entrar</button>
+  </form>
+</main>
+
+<!-- ===== Panel ===== -->
+<main id="panel" class="control" hidden>
+  <div class="estado" id="estado" data-fase="libre">
+    <span id="estado-fase">—</span>
+    <b id="estado-tiempo"></b>
+    <small id="estado-detalle">Cargando…</small>
+  </div>
+  <p id="salida" class="salida" role="status"></p>
+
+  <section class="caja">
+    <h2>Ronda</h2>
+    <p class="nota">Gana quien tenga más países al terminar. Iniciar una ronda deja el mapa en blanco, pero conserva a los jugadores registrados.</p>
+    <label class="campo campo-etiqueta" for="minutos">Duración (minutos)
+      <input id="minutos" type="number" min="1" max="60" value="3" inputmode="numeric">
+    </label>
+    <button type="button" class="boton" id="iniciar">Iniciar ronda</button>
+    <div class="fila">
+      <button type="button" class="boton secundario" id="preparar">Pantalla de espera</button>
+      <button type="button" class="boton secundario" id="terminar">Terminar ya</button>
+    </div>
+    <button type="button" class="boton secundario" id="libre">Modo libre (sin tiempo)</button>
+  </section>
+
+  <section class="caja">
+    <h2>Robos</h2>
+    <label class="campo campo-etiqueta" for="proteccion">Segundos de protección tras conquistar (0 = robos en cadena)
+      <input id="proteccion" type="number" min="0" max="120" value="0" inputmode="numeric">
+    </label>
+    <button type="button" class="boton secundario" id="guardar-proteccion">Guardar</button>
+  </section>
+
+  <section class="caja">
+    <h2>Reiniciar todo</h2>
+    <p class="nota">Borra jugadores, países y bitácora, y regresa los contadores (SERIAL) a 1 con <b>TRUNCATE … RESTART IDENTITY</b>. Todos tendrán que volver a registrarse.</p>
+    <label class="marcar"><input type="checkbox" id="confirmar"> Sí, quiero borrar todo</label>
+    <button type="button" class="boton peligro" id="reiniciar">Reiniciar juego</button>
+  </section>
+
+  <section class="caja enlaces">
+    <h2>Pantallas</h2>
+    <a href="../?proyector" target="_blank" rel="noopener">Abrir proyector con QR</a>
+    <a href="../" target="_blank" rel="noopener">Abrir el juego</a>
+    <a href="../vr.html" target="_blank" rel="noopener">Abrir realidad aumentada / virtual</a>
+  </section>
+</main>
+
+<script src="../js/config.js"></script>
+<script type="module">
+  import { api } from '../js/api.js';
+  import { mensaje, reloj } from '../js/comun.js';
+  const $ = (id) => document.getElementById(id);
+  const LLAVE = 'globo-rds:admin';
+  let clave = '';
+  try { clave = sessionStorage.getItem(LLAVE) || ''; } catch {}
+
+  // ---------- Sesión ----------
+  async function entrar(intento) {
+    await api.admin(intento, 'entrar');   // la API responde 403 si la clave no coincide con ADMIN_KEY
+    clave = intento;
+    try { sessionStorage.setItem(LLAVE, clave); } catch {}
+    $('acceso').hidden = true;
+    $('panel').hidden = false;
+    $('salir').hidden = false;
+    refrescar();
+  }
+  $('form-acceso').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    $('entrar').disabled = true;
+    $('acceso-error').textContent = '';
+    try { await entrar($('clave').value); }
+    catch (err) { $('acceso-error').textContent = err.codigo === 'clave_incorrecta' ? 'Contraseña incorrecta.' : mensaje(err.codigo); }
+    finally { $('entrar').disabled = false; }
+  });
+  $('salir').addEventListener('click', () => {
+    try { sessionStorage.removeItem(LLAVE); } catch {}
+    location.reload();
+  });
+  if (clave) entrar(clave).catch(() => { clave = ''; });
+
+  // ---------- Estado en vivo ----------
+  let estado = null, desfase = 0;
+  async function refrescar() {
+    if (!clave) return;
+    try {
+      estado = await api.estado();
+      estado.ronda = estado.ronda || { fase: 'libre' };
+      estado.proteccion = estado.proteccion ?? 0;
+      if (estado.ahora) desfase = Date.parse(estado.ahora) - Date.now();
+      $('conexion').dataset.estado = 'ok';
+    } catch (e) { $('conexion').dataset.estado = 'error'; $('estado-detalle').textContent = mensaje(e.codigo); }
+  }
+  function pintarEstado() {
+    if (!estado) return;
+    const r = estado.ronda;
+    let fase = r.fase;
+    const falta = r.fin ? Date.parse(r.fin) - (Date.now() + desfase) : 0;
+    if (fase === 'jugando' && falta <= 0) fase = 'terminada';
+    $('estado').dataset.fase = fase;
+    $('estado-fase').textContent = { libre: 'Modo libre', espera: 'En espera', jugando: 'En juego', terminada: 'Terminada' }[fase] || fase;
+    $('estado-tiempo').textContent = fase === 'jugando' ? reloj(falta) : '';
+    $('estado-detalle').textContent = `${estado.jugadores.length} jugadores · ${estado.reclamos.length} países conquistados · protección ${estado.proteccion} s`;
+  }
+  setInterval(pintarEstado, 250);
+  setInterval(refrescar, 2000);
+
+  // ---------- Acciones ----------
+  function aviso(texto, tipo) { const s = $('salida'); s.textContent = texto; s.dataset.tipo = tipo; }
+  async function hacer(texto, fn) {
+    aviso('…', '');
+    try { await fn(); aviso(`✓ ${texto}`, 'ok'); await refrescar(); }
+    catch (e) { aviso(e.codigo === 'clave_incorrecta' ? 'La sesión ya no es válida. Cierra sesión y vuelve a entrar.' : mensaje(e.codigo), 'error'); }
+  }
+  const minutos = () => Math.max(1, Math.min(60, parseInt($('minutos').value, 10) || 3));
+  $('iniciar').onclick = () => hacer(`Ronda de ${minutos()} min iniciada`, () => api.admin(clave, 'ronda', { ronda: 'iniciar', minutos: minutos() }));
+  $('preparar').onclick = () => hacer('Pantalla de espera activa (mapa en blanco)', () => api.admin(clave, 'ronda', { ronda: 'preparar' }));
+  $('terminar').onclick = () => hacer('Ronda terminada', () => api.admin(clave, 'ronda', { ronda: 'terminar' }));
+  $('libre').onclick = () => hacer('Modo libre activo', () => api.admin(clave, 'ronda', { ronda: 'libre' }));
+  $('guardar-proteccion').onclick = () => hacer('Protección guardada', () => api.admin(clave, 'config', { proteccion: parseInt($('proteccion').value, 10) || 0 }));
+  $('reiniciar').onclick = () => {
+    if (!$('confirmar').checked) { aviso('Marca la casilla de confirmación primero.', 'error'); return; }
+    hacer('Juego reiniciado: contadores en 1', () => api.admin(clave, 'reiniciar'));
+    $('confirmar').checked = false;
+  };
+</script>
+</body>
+</html>

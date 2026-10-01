@@ -1,40 +1,47 @@
-// Modo VR / AR con WebXR (three.js + three-globe).
-//   * Meta Quest (navegador del visor): realidad virtual con controles; gatillo = elegir, gatillo otra vez = reclamar.
-//   * Android con Chrome y ARCore: realidad aumentada; el globo aparece flotando frente a ti.
-//   * iPhone y computadoras sin visor: vista 3D normal (Safari en iPhone no soporta WebXR).
+// Modo AR / VR con WebXR (three.js + three-globe).
+//   * Android con Chrome y ARCore: el globo se coloca sobre una mesa o el piso (detección de superficies);
+//     tocar = conquistar/robar, arrastrar = girar e inclinar, pellizcar = cambiar tamaño.
+//   * Meta Quest: realidad virtual; gatillo = conquistar/robar, agarre o palanca = girar.
+//   * iPhone y computadoras sin visor: vista 3D normal con los mismos gestos.
 import * as THREE from 'three';
 import ThreeGlobe from 'three-globe';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { configurada } from './api.js';
 import { crearJuego } from './juego.js';
-import { cargarPaises, escapar, oscurecer, textoSobre, mensaje } from './comun.js';
+import { cargarPaises, escapar, oscurecer, mensaje, reloj } from './comun.js';
 
 const $ = (id) => document.getElementById(id);
-const COLOR_OCEANO = '#0B1F3A';
-const COLOR_TIERRA = '#2E405E';
-const COLOR_BORDE = '#5B7090';
-const ESCALA_VR = 0.003;   // three-globe mide 100 unidades de radio → 0.30 m
-const ESCALA_AR = 0.0018;  // → 0.18 m, cabe sobre una mesa
+const OCEANO = '#A9BCCB';
+const TIERRA = '#F7F8F9';
+const TIERRA_LADO = '#C9D2DA';
+const BORDE = '#7A8794';
+const BORDE_DUENO = '#2E343B';
+const ESCALA_VR = 0.003;                  // three-globe mide 100 unidades de radio → 30 cm
+const ESCALA_AR = 0.0016;                 // → 16 cm, cabe sobre una mesa
+const ESCALA_AR_MIN = 0.0007, ESCALA_AR_MAX = 0.006;
 
 let paises = [];
 const porIso = new Map();
 let seleccion = null;
-let ocupado = false;
-let modoXR = null; // null | 'immersive-vr' | 'immersive-ar'
+let modoXR = null;            // null | 'immersive-ar' | 'immersive-vr'
 
 const juego = crearJuego({
-  alCambiar: () => { pintar(); actualizarHoja(); actualizarPanelVR(); actualizarYo(); },
+  alCambiar: () => { pintar(); sincronizarNombres(); actualizarFicha(); actualizarYo(); },
   alEvento: (e) => {
-    if (e.tipo === 'reclamo' && (!s.yo || e.nombre !== s.yo.nombre)) aviso(`${e.nombre} reclamó ${e.pais}`, e.color);
+    if (s.yo && e.nombre === s.yo.nombre) return;
+    if (e.tipo === 'robo' && s.yo && e.victima === s.yo.nombre) { cintillo(`¡<b>${escapar(e.nombre)}</b> te quitó ${escapar(e.pais)}!`, e.color); vibrar(); }
+    else if (e.tipo === 'robo') cintillo(`<b>${escapar(e.nombre)}</b> le quitó ${escapar(e.pais)} a ${escapar(e.victima)}`, e.color);
+    else if (e.tipo === 'reclamo') cintillo(`<b>${escapar(e.nombre)}</b> conquistó ${escapar(e.pais)}`, e.color);
   },
-  alConexion: (ok, error) => {
+  alConexion: (ok) => {
     $('conexion').dataset.estado = ok ? 'ok' : 'error';
-    $('conexion-texto').textContent = ok ? 'En vivo' : mensaje(error?.codigo);
+    $('conexion-texto').textContent = ok ? 'En vivo' : 'Sin conexión';
   },
+  alFase: (fase, antes) => { if (antes && fase === 'jugando') cintillo('<b>¡Arrancó la ronda!</b>'); },
 });
 const s = juego.estado;
 
-// ---------- Escena ----------
+// ============================== Escena ==============================
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
@@ -42,59 +49,77 @@ renderer.xr.enabled = true;
 $('escena').appendChild(renderer.domElement);
 
 const escena = new THREE.Scene();
-const camara = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.01, 200);
-escena.add(new THREE.AmbientLight(0xffffff, 1.6));
-const sol = new THREE.DirectionalLight(0xffffff, 1.4);
-sol.position.set(1, 2, 1);
+const camara = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.01, 200);
+escena.add(new THREE.HemisphereLight(0xffffff, 0x8a96a3, 2.2));
+const sol = new THREE.DirectionalLight(0xffffff, 1.2);
+sol.position.set(0.6, 2, 1.2);
 escena.add(sol);
 
-const estrellas = crearEstrellas();
-escena.add(estrellas);
-
-const ancla = new THREE.Group();     // se mueve y se gira; el globo va dentro
-ancla.position.set(0, 1.3, -1.2);
+// ancla (posición y hacia dónde mira) → inclinar (eje X) → girar (eje Y) → globo
+const ancla = new THREE.Group();
+const inclinar = new THREE.Group();
+const girar = new THREE.Group();
+ancla.add(inclinar); inclinar.add(girar);
+ancla.position.set(0, 1.3, -1.1);
 escena.add(ancla);
 
 let globo;
-const panel = crearPanelVR();        // letrero flotante con el país elegido (solo dentro de VR)
+const nombres = new THREE.Group();   // letreros con el nombre del dueño de cada país
+const panel = crearPanelVR();        // letrero flotante (solo dentro del visor)
 ancla.add(panel.malla);
+
+// Retícula para elegir dónde colocar el globo en AR
+const reticula = new THREE.Mesh(
+  new THREE.RingGeometry(0.05, 0.065, 40).rotateX(-Math.PI / 2),
+  new THREE.MeshBasicMaterial({ color: 0xffffff }),
+);
+reticula.matrixAutoUpdate = false;
+reticula.visible = false;
+escena.add(reticula);
+
+// Los letreros viven en la capa 3: la cámara (y las de cada ojo en XR) la dibujan,
+// pero el rayo de selección solo revisa la capa 0. (WebXR usa las capas 1 y 2 para cada ojo.)
+const CAPA_NOMBRES = 3;
+camara.layers.enable(CAPA_NOMBRES);
 
 camara.position.set(0, 1.3, 0);
 const orbita = new OrbitControls(camara, renderer.domElement);
 orbita.target.copy(ancla.position);
 orbita.enableDamping = true;
 orbita.enablePan = false;
-orbita.minDistance = 0.45;
-orbita.maxDistance = 3;
+orbita.minDistance = 0.42;
+orbita.maxDistance = 2.6;
 orbita.autoRotate = true;
 orbita.autoRotateSpeed = 0.5;
 orbita.addEventListener('start', () => { orbita.autoRotate = false; });
 
 window.addEventListener('resize', () => {
+  if (modoXR) return;
   camara.aspect = window.innerWidth / window.innerHeight;
   camara.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
-// ---------- Inicio ----------
+// ============================== Inicio ==============================
 iniciar().catch((e) => {
   console.error(e);
-  $('cargando').innerHTML = '<p>No se pudo cargar el modo VR. Prueba en Chrome (Android) o en el navegador del Meta Quest.</p>';
+  $('cargando').innerHTML = '<p>No se pudo cargar el modo AR/VR.<br>Prueba en Chrome (Android) o en el navegador del Meta Quest.</p>';
 });
 
 async function iniciar() {
   paises = await cargarPaises();
   for (const f of paises) porIso.set(f.properties.iso, f);
+  await document.fonts?.load('800 48px "Big Shoulders Display"').catch(() => {});
 
   globo = new ThreeGlobe({ animateIn: false })
-    .showAtmosphere(true)
-    .atmosphereColor('#7FB4E3')
-    .atmosphereAltitude(0.15)
+    .showAtmosphere(false)
+    .showGraticules(true)
     .polygonsData(paises)
-    .polygonsTransitionDuration(0); // dentro de XR no hay requestAnimationFrame normal: sin animaciones de transición
-  globo.globeMaterial().color.set(COLOR_OCEANO);
+    .polygonsTransitionDuration(0); // dentro de XR el navegador pausa requestAnimationFrame: sin animaciones de transición
+  globo.globeMaterial().color.set(OCEANO);
   globo.scale.setScalar(ESCALA_VR);
-  ancla.add(globo);
+  globo.add(nombres);
+  girar.add(globo);
   pintar();
 
   $('cargando').hidden = true;
@@ -102,8 +127,8 @@ async function iniciar() {
   conectarUI();
   await detectarSoporte();
   if (configurada) juego.iniciar();
-  else aviso(mensaje('sin_configurar'));
-
+  else cintillo(escapar(mensaje('sin_configurar')));
+  setInterval(actualizarCrono, 250);
   renderer.setAnimationLoop(cuadro);
 }
 
@@ -111,22 +136,75 @@ function duenoDe(iso) {
   const id = s.reclamos.get(iso);
   return id == null ? null : (s.jugadores.get(id) || (s.yo && id === s.yo.id ? s.yo : null));
 }
+const esMio = (d) => !!(d && s.yo && d.id === s.yo.id);
 
 function pintar() {
   if (!globo) return;
   globo
-    .polygonCapColor((f) => duenoDe(f.properties.iso)?.color || COLOR_TIERRA)
-    .polygonSideColor((f) => { const d = duenoDe(f.properties.iso); return d ? oscurecer(d.color) : '#1A2740'; })
-    .polygonStrokeColor((f) => (f.properties.iso === seleccion ? '#FFFFFF' : COLOR_BORDE))
+    .polygonCapColor((f) => duenoDe(f.properties.iso)?.color || TIERRA)
+    .polygonSideColor((f) => { const d = duenoDe(f.properties.iso); return d ? oscurecer(d.color, 0.6) : TIERRA_LADO; })
+    .polygonStrokeColor((f) => (f.properties.iso === seleccion ? '#111316' : duenoDe(f.properties.iso) ? BORDE_DUENO : BORDE))
     .polygonAltitude((f) => {
       const d = duenoDe(f.properties.iso);
-      let a = d ? 0.025 : 0.006;
-      if (f.properties.iso === seleccion) a += 0.03;
-      return a;
+      return (d ? (esMio(d) ? 0.02 : 0.012) : 0.004) + (f.properties.iso === seleccion ? 0.02 : 0);
     });
 }
 
-// ---------- Elegir países con un rayo (dedo, mouse o control del visor) ----------
+// ============================== Nombres sobre el globo (sprites) ==============================
+const texturas = new Map(); // "nombre|color" → {textura, aspecto}
+const letreros = new Map(); // iso → sprite
+
+function texturaNombre(nombre, color) {
+  const clave = `${nombre}|${color}`;
+  if (texturas.has(clave)) return texturas.get(clave);
+  const lienzo = document.createElement('canvas');
+  const ctx = lienzo.getContext('2d');
+  const fuente = '800 44px "Big Shoulders Display", "Arial Narrow", sans-serif';
+  ctx.font = fuente;
+  const texto = nombre.toUpperCase();
+  const ancho = Math.ceil(ctx.measureText(texto).width) + 52;
+  lienzo.width = ancho; lienzo.height = 60;
+  ctx.font = fuente;
+  ctx.fillStyle = 'rgba(255,255,255,0.92)';
+  ctx.fillRect(0, 6, ancho, 48);
+  ctx.fillStyle = color;
+  ctx.fillRect(8, 18, 24, 24);
+  ctx.fillStyle = '#111316';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(texto, 40, 32);
+  const textura = new THREE.CanvasTexture(lienzo);
+  textura.colorSpace = THREE.SRGBColorSpace;
+  const dato = { textura, aspecto: ancho / 60 };
+  texturas.set(clave, dato);
+  return dato;
+}
+
+function sincronizarNombres() {
+  if (!globo) return;
+  for (const [iso, sp] of letreros) if (!s.reclamos.has(iso)) { nombres.remove(sp); sp.material.dispose(); letreros.delete(iso); }
+  for (const iso of s.reclamos.keys()) {
+    const d = duenoDe(iso);
+    if (!d) continue;
+    const { textura, aspecto } = texturaNombre(d.nombre, d.color);
+    let sp = letreros.get(iso);
+    if (!sp) {
+      sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: textura, depthWrite: false }));
+      sp.layers.set(CAPA_NOMBRES); // el rayo de selección (capa 0) no los toca
+      const p = porIso.get(iso).properties;
+      const c = globo.getCoords(p.lat, p.lng, 0.06);
+      sp.position.set(c.x, c.y, c.z);
+      nombres.add(sp);
+      letreros.set(iso, sp);
+    } else if (sp.material.map !== textura) {
+      sp.material.map = textura;
+      sp.material.needsUpdate = true;
+    }
+    const alto = esMio(d) ? 6.5 : 5.2; // en unidades del globo (radio = 100)
+    sp.scale.set(alto * aspecto, alto, 1);
+  }
+}
+
+// ============================== Elegir países con un rayo ==============================
 const rayo = new THREE.Raycaster();
 const matrizTmp = new THREE.Matrix4();
 
@@ -150,7 +228,7 @@ function rayoDesdeControl(control) {
   rayo.ray.direction.set(0, 0, -1).applyMatrix4(matrizTmp);
 }
 
-// Fuera de XR: tocar o hacer clic (sin arrastrar) elige el país.
+// Vista normal (sin XR): tocar sin arrastrar elige el país.
 let inicioToque = null;
 renderer.domElement.addEventListener('pointerdown', (e) => { inicioToque = [e.clientX, e.clientY]; });
 renderer.domElement.addEventListener('pointerup', (e) => {
@@ -159,239 +237,248 @@ renderer.domElement.addEventListener('pointerup', (e) => {
   const r = renderer.domElement.getBoundingClientRect();
   rayo.setFromCamera(new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1), camara);
   const iso = paisEnRayo();
-  if (iso) seleccionar(iso); else deseleccionar();
+  if (iso) tocarPais(iso); else cerrarFicha();
 });
 
-// Controles del visor (Quest) y toques en pantalla dentro de AR.
+// Controles del Quest y toques de pantalla dentro de AR.
 const controles = [0, 1].map((i) => {
   const c = renderer.xr.getController(i);
   c.addEventListener('connected', (e) => {
-    c.userData.modo = e.data.targetRayMode;
     if (e.data.targetRayMode === 'tracked-pointer' && !c.userData.linea) {
       const geo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, -1)]);
-      const linea = new THREE.Line(geo, new THREE.LineBasicMaterial({ color: 0x7fb4e3 }));
+      const linea = new THREE.Line(geo, new THREE.LineBasicMaterial({ color: 0x111316 }));
       linea.scale.z = 2;
       c.add(linea);
       c.userData.linea = linea;
     }
   });
   c.addEventListener('select', () => alSeleccionarXR(c));
-  c.addEventListener('squeezestart', () => { c.userData.agarre = { x: posicionX(c), giro: ancla.rotation.y }; });
+  c.addEventListener('squeezestart', () => { c.userData.agarre = { x: posX(c), giro: girar.rotation.y }; });
   c.addEventListener('squeezeend', () => { c.userData.agarre = null; });
   escena.add(c);
   return c;
 });
-
-function posicionX(c) { return new THREE.Vector3().setFromMatrixPosition(c.matrixWorld).x; }
+const posX = (c) => new THREE.Vector3().setFromMatrixPosition(c.matrixWorld).x;
 
 function alSeleccionarXR(control) {
+  if (modoXR === 'immersive-ar') {
+    if (gesto.huboArrastre) { gesto.huboArrastre = false; return; } // fue un giro o un pellizco
+    if (colocando) { colocarEnReticula(); return; }
+  }
   rayoDesdeControl(control);
   const iso = paisEnRayo();
-  if (!iso) { if (modoXR === 'immersive-vr') deseleccionar(); return; }
-  // En VR no hay botones de pantalla: tocar dos veces el mismo país = reclamar/liberar.
-  if (modoXR === 'immersive-vr' && iso === seleccion) accion();
-  else seleccionar(iso);
+  if (iso) tocarPais(iso); else cerrarFicha();
 }
 
-function seleccionar(iso) {
-  seleccion = iso;
-  orbita.autoRotate = false;
-  pintar();
-  actualizarHoja();
-  actualizarPanelVR();
-}
-
-function deseleccionar() {
-  seleccion = null;
-  pintar();
-  actualizarHoja();
-  actualizarPanelVR();
-}
-
-// ---------- Reclamar / liberar ----------
-async function accion() {
-  if (!seleccion || ocupado) return;
-  if (!s.yo) { aviso('Primero regístrate en la página principal.'); return; }
-  const iso = seleccion;
-  const nombre = porIso.get(iso).properties.nombre;
+// ============================== Conquistar / robar ==============================
+function tocarPais(iso) {
+  if (!s.yo) { mostrarFicha(iso); cintillo('Primero regístrate en la página principal'); return; }
   const d = duenoDe(iso);
-  const mio = d && d.id === s.yo.id;
-  if (d && !mio) { aviso(`${nombre} ya es de ${d.nombre}`, d.color); return; }
-  ocupado = true;
-  actualizarHoja(); actualizarPanelVR();
+  if (esMio(d) || !juego.sePuedeReclamar() || juego.proteccionRestante(iso) > 0) { mostrarFicha(iso); return; }
+  conquistar(iso);
+}
+
+async function conquistar(iso) {
+  const nombre = porIso.get(iso).properties.nombre;
+  mostrarFicha(iso);
   try {
-    const r = mio ? await juego.liberar(iso) : await juego.reclamar(iso);
-    if (r.resultado === 'ok') aviso(mio ? `Liberaste ${nombre}` : `¡${nombre} es tuyo!`, s.yo.color);
-    else if (r.resultado === 'ocupado') aviso(`Te ganó ${r.dueno}`, r.color);
-    else aviso(mensaje(r.resultado));
-    vibrar();
+    const r = await juego.reclamar(iso);
+    if (r.resultado === 'ok') { cintillo(`<b>${escapar(nombre)}</b> es tuyo`, s.yo?.color); vibrar(); }
+    else if (r.resultado === 'robado') { cintillo(`Le quitaste <b>${escapar(nombre)}</b> a ${escapar(r.dueno)}`, s.yo?.color); vibrar(); }
+    else if (r.resultado === 'protegido') cintillo(`<b>${escapar(nombre)}</b> protegido ${r.espera} s`, r.color);
+    else if (r.resultado !== 'en_camino' && r.resultado !== 'ya_es_tuyo') cintillo(escapar(mensaje(r.resultado)));
   } catch (e) {
-    aviso(mensaje(e.codigo));
-  } finally {
-    ocupado = false;
-    actualizarHoja(); actualizarPanelVR();
+    cintillo(escapar(mensaje(e.codigo)));
   }
 }
 
 function vibrar() {
   const sesion = renderer.xr.getSession();
   for (const fuente of sesion?.inputSources || []) fuente.gamepad?.hapticActuators?.[0]?.pulse?.(0.6, 60);
-  if (!sesion && navigator.vibrate) navigator.vibrate(30);
+  try { navigator.vibrate?.(25); } catch { /* nada */ }
 }
 
-// ---------- Interfaz HTML (vista normal y AR) ----------
-function conectarUI() {
-  $('vr-cerrar').addEventListener('click', deseleccionar);
-  $('vr-accion').addEventListener('click', accion);
-  $('btn-vr').addEventListener('click', () => entrarXR('immersive-vr'));
-  $('btn-ar').addEventListener('click', () => entrarXR('immersive-ar'));
-  $('ar-salir').addEventListener('click', () => renderer.xr.getSession()?.end());
-  for (const [id, dir] of [['ar-izq', -1], ['ar-der', 1]]) {
-    const b = $(id);
-    const parar = () => { girarAR = 0; };
-    b.addEventListener('pointerdown', () => { girarAR = dir; });
-    b.addEventListener('pointerup', parar);
-    b.addEventListener('pointerleave', parar);
-    b.addEventListener('pointercancel', parar);
-  }
-  // Que tocar los botones de la capa HTML no cuente también como "seleccionar" dentro de AR.
-  $('ui').addEventListener('beforexrselect', (e) => {
-    if (e.target.closest('button, a, .hoja')) e.preventDefault();
-  });
+// ============================== Ficha y avisos ==============================
+let relojFicha;
+function mostrarFicha(iso) {
+  seleccion = iso;
+  orbita.autoRotate = false;
+  pintar();
+  actualizarFicha();
+  clearTimeout(relojFicha);
+  if (modoXR === 'immersive-ar') relojFicha = setTimeout(cerrarFicha, 3500); // en AR que no estorbe
+}
+
+function cerrarFicha() {
+  seleccion = null;
+  pintar();
+  actualizarFicha();
+}
+
+function actualizarFicha() {
+  const abierta = !!seleccion && modoXR !== 'immersive-vr';
+  $('ficha').hidden = !abierta;
+  document.body.classList.toggle('con-ficha', abierta);
+  actualizarPanelVR();
+  if (!abierta) return;
+  const p = porIso.get(seleccion).properties;
+  const d = duenoDe(seleccion);
+  $('ficha-continente').textContent = p.continente;
+  $('ficha-nombre').textContent = p.nombre;
+  $('ficha-dueno').innerHTML = d
+    ? `<span class="muestra-color" style="background:${d.color}"></span>${esMio(d) ? '<b>Es tuyo</b>' : `De <b>${escapar(d.nombre)}</b>`}`
+    : 'Libre';
+}
+
+let relojCintillo;
+function cintillo(html, color) {
+  const c = $('cintillo');
+  c.innerHTML = `<span class="cintillo-texto">${color ? `<span class="muestra-color" style="background:${color}"></span>` : ''}<span>${html}</span></span>`;
+  c.hidden = false;
+  clearTimeout(relojCintillo);
+  relojCintillo = setTimeout(() => { c.hidden = true; }, 2200);
+  panel.aviso = { texto: html.replace(/<[^>]+>/g, ''), color };
+  actualizarPanelVR();
 }
 
 function actualizarYo() {
-  $('vr-yo').innerHTML = s.yo
-    ? `Juegas como <b style="color:${s.yo.color}">${escapar(s.yo.nombre)}</b> · ${juego.misPaises()}/${s.max} países`
-    : 'Para reclamar países primero <a href="index.html">regístrate en la página principal</a>. Aquí puedes mirar.';
+  const yo = s.yo;
+  $('xr-yo').innerHTML = yo
+    ? `<span class="muestra-color" style="background:${yo.color}"></span>Juegas como <b>${escapar(yo.nombre)}</b> · ${juego.misPaises()} países`
+    : 'Para conquistar, primero <a href="./">regístrate en la página principal</a>. Aquí puedes mirar.';
 }
 
-function textoDueno(d) {
-  if (!d) return 'Libre';
-  return s.yo && d.id === s.yo.id ? 'Es tuyo' : `De ${d.nombre}`;
+function actualizarCrono() {
+  const fase = juego.fase();
+  const e = $('xr-crono');
+  e.dataset.fase = fase;
+  $('xr-crono-etiqueta').textContent = { jugando: 'En juego', espera: 'Prepárate', terminada: 'Fin', libre: 'Libre' }[fase] || '';
+  $('xr-crono-tiempo').textContent = fase === 'jugando' ? reloj(juego.restante()) : '';
+  if (modoXR === 'immersive-vr') actualizarPanelVR();
 }
 
-function actualizarHoja() {
-  const hoja = $('vr-hoja');
-  hoja.hidden = !seleccion;
-  if (!seleccion) return;
-  const p = porIso.get(seleccion).properties;
-  const d = duenoDe(seleccion);
-  const mio = d && s.yo && d.id === s.yo.id;
-  $('vr-continente').textContent = p.continente;
-  $('vr-nombre').textContent = p.nombre;
-  $('vr-dueno').innerHTML = `${d ? `<span class="punto" style="background:${d.color}"></span>` : ''}${escapar(textoDueno(d))}`;
-  const b = $('vr-accion');
-  b.style.background = ''; b.style.color = '';
-  if (!s.yo) { b.textContent = 'Regístrate en la página principal'; b.disabled = true; }
-  else if (mio) { b.textContent = `Liberar ${p.nombre}`; b.disabled = ocupado; }
-  else if (d) { b.textContent = 'Ya tiene dueño'; b.disabled = true; }
-  else if (juego.misPaises() >= s.max) { b.textContent = `Ya tienes ${s.max} países`; b.disabled = true; }
-  else {
-    b.textContent = ocupado ? 'Reclamando…' : `Reclamar ${p.nombre}`;
-    b.disabled = ocupado;
-    b.style.background = s.yo.color; b.style.color = textoSobre(s.yo.color);
-  }
-}
-
-let relojAviso;
-function aviso(texto, color) {
-  const cont = $('avisos');
-  const el = document.createElement('div');
-  el.className = 'aviso';
-  el.innerHTML = `${color ? `<span class="punto" style="background:${color}"></span>` : ''}<span>${escapar(texto)}</span>`;
-  cont.prepend(el);
-  while (cont.children.length > 3) cont.lastChild.remove();
-  setTimeout(() => el.remove(), 3800);
-  // Dentro de VR no se ve el HTML: el aviso también aparece en el letrero flotante.
-  panel.aviso = { texto, color };
-  actualizarPanelVR();
-  clearTimeout(relojAviso);
-  relojAviso = setTimeout(() => { panel.aviso = null; actualizarPanelVR(); }, 3800);
-}
-
-// ---------- Letrero flotante para VR (texto dibujado en un canvas) ----------
+// ============================== Letrero flotante para VR ==============================
 function crearPanelVR() {
   const lienzo = document.createElement('canvas');
-  lienzo.width = 1024; lienzo.height = 400;
+  lienzo.width = 1024; lienzo.height = 360;
   const textura = new THREE.CanvasTexture(lienzo);
   textura.colorSpace = THREE.SRGBColorSpace;
-  const malla = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.62, 0.24),
-    new THREE.MeshBasicMaterial({ map: textura, transparent: true }),
-  );
-  malla.position.set(0, 0.48, 0);
+  const malla = new THREE.Mesh(new THREE.PlaneGeometry(0.6, 0.21), new THREE.MeshBasicMaterial({ map: textura, transparent: true }));
+  malla.position.set(0, 0.46, 0);
   malla.visible = false;
-  return { lienzo, textura, malla, aviso: null };
+  return { lienzo, textura, malla, aviso: null, ultimo: '' };
 }
 
 function actualizarPanelVR() {
-  if (!panel || modoXR !== 'immersive-vr') { panel.malla.visible = false; return; }
+  if (modoXR !== 'immersive-vr') { panel.malla.visible = false; return; }
+  const fase = juego.fase();
+  const d = seleccion ? duenoDe(seleccion) : null;
+  const firma = [seleccion, d?.id, fase, fase === 'jugando' ? reloj(juego.restante()) : '', panel.aviso?.texto, juego.misPaises()].join('|');
+  if (firma === panel.ultimo) return;
+  panel.ultimo = firma;
   const ctx = panel.lienzo.getContext('2d');
   const { width: w, height: h } = panel.lienzo;
   ctx.clearRect(0, 0, w, h);
-  ctx.fillStyle = 'rgba(16,24,40,0.92)';
-  ctx.beginPath(); ctx.roundRect(8, 8, w - 16, h - 16, 40); ctx.fill();
-  ctx.fillStyle = '#ECEFF5';
-  ctx.textBaseline = 'top';
+  ctx.fillStyle = '#111316'; ctx.fillRect(0, 0, w, 64);
+  ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 64, w, h - 64);
+  ctx.textBaseline = 'middle';
+  ctx.font = '800 40px "Big Shoulders Display", sans-serif';
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText(fase === 'jugando' ? `EN JUEGO  ${reloj(juego.restante())}` : fase === 'terminada' ? 'FIN DE LA RONDA' : fase === 'espera' ? 'PREPÁRATE' : 'MODO LIBRE', 28, 34);
+  ctx.textAlign = 'right';
+  ctx.fillText(s.yo ? `${s.yo.nombre.toUpperCase()} · ${juego.misPaises()}` : 'SIN REGISTRO', w - 28, 34);
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#111316';
   if (seleccion) {
     const p = porIso.get(seleccion).properties;
-    const d = duenoDe(seleccion);
-    ctx.font = '600 72px "IBM Plex Sans", sans-serif';
-    ctx.fillText(p.nombre, 48, 40);
-    ctx.font = '44px "IBM Plex Sans", sans-serif';
-    if (d) { ctx.fillStyle = d.color; ctx.beginPath(); ctx.arc(66, 172, 18, 0, Math.PI * 2); ctx.fill(); }
-    ctx.fillStyle = '#A9B4C7';
-    ctx.fillText(textoDueno(d), d ? 100 : 48, 148);
-    ctx.fillStyle = '#F0A04B';
-    const mio = d && s.yo && d.id === s.yo.id;
-    const ayuda = !s.yo ? 'Regístrate en la página principal'
-      : ocupado ? 'Enviando…'
-      : mio ? 'Gatillo otra vez = liberar'
-      : d ? 'Ya tiene dueño' : 'Gatillo otra vez = reclamar';
-    ctx.fillText(ayuda, 48, 240);
+    ctx.font = '900 92px "Big Shoulders Display", sans-serif';
+    ctx.fillText(p.nombre.toUpperCase(), 28, 140);
+    ctx.font = '600 40px "Instrument Sans", sans-serif';
+    if (d) { ctx.fillStyle = d.color; ctx.fillRect(28, 212, 30, 30); ctx.fillStyle = '#111316'; }
+    ctx.fillText(d ? (esMio(d) ? 'Es tuyo' : `De ${d.nombre}`) : 'Libre', d ? 72 : 28, 228);
   } else {
-    ctx.font = '600 56px "IBM Plex Sans", sans-serif';
-    ctx.fillText('Apunta a un país y pulsa el gatillo', 48, 60);
-    ctx.font = '40px "IBM Plex Sans", sans-serif';
-    ctx.fillStyle = '#A9B4C7';
-    ctx.fillText('Botón lateral (agarre) + mover el brazo = girar', 48, 160);
+    ctx.font = '800 58px "Big Shoulders Display", sans-serif';
+    ctx.fillText('APUNTA Y PULSA EL GATILLO', 28, 140);
+    ctx.font = '500 34px "Instrument Sans", sans-serif';
+    ctx.fillStyle = '#5A6370';
+    ctx.fillText('Agarre + mover el brazo, o palanca: girar el globo', 28, 214);
   }
   if (panel.aviso) {
-    ctx.fillStyle = panel.aviso.color || '#7FB4E3';
-    ctx.font = '600 40px "IBM Plex Sans", sans-serif';
-    ctx.fillText(panel.aviso.texto.slice(0, 40), 48, 316);
+    ctx.fillStyle = panel.aviso.color || '#111316';
+    ctx.fillRect(0, h - 70, 14, 70);
+    ctx.fillStyle = '#111316';
+    ctx.font = '600 34px "Instrument Sans", sans-serif';
+    ctx.fillText(panel.aviso.texto.slice(0, 46), 32, h - 35);
   }
   panel.textura.needsUpdate = true;
   panel.malla.visible = true;
 }
 
-// ---------- Sesiones WebXR ----------
+// ============================== Gestos táctiles en AR ==============================
+// La capa #ar-gestos recibe los dedos encima de la cámara: 1 dedo gira/inclina, 2 dedos cambian el tamaño.
+const gesto = { dedos: new Map(), huboArrastre: false, distInicial: 0, escalaInicial: ESCALA_AR, recorrido: 0 };
+let escalaAR = ESCALA_AR;
+
+function distanciaDedos() {
+  const [a, b] = [...gesto.dedos.values()];
+  return Math.hypot(a.x - b.x, a.y - b.y);
+}
+
+function conectarGestos() {
+  const capa = $('ar-gestos');
+  capa.addEventListener('pointerdown', (e) => {
+    gesto.dedos.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (gesto.dedos.size === 1) { gesto.huboArrastre = false; gesto.recorrido = 0; }
+    if (gesto.dedos.size === 2) { gesto.distInicial = distanciaDedos(); gesto.escalaInicial = escalaAR; gesto.huboArrastre = true; }
+  });
+  capa.addEventListener('pointermove', (e) => {
+    const antes = gesto.dedos.get(e.pointerId);
+    if (!antes || colocando) return;
+    const dx = e.clientX - antes.x, dy = e.clientY - antes.y;
+    gesto.dedos.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (gesto.dedos.size === 1) {
+      gesto.recorrido += Math.hypot(dx, dy);
+      if (gesto.recorrido > 8) gesto.huboArrastre = true;
+      girar.rotation.y += dx * 0.012;
+      inclinar.rotation.x = THREE.MathUtils.clamp(inclinar.rotation.x + dy * 0.008, -1.1, 1.1);
+    } else if (gesto.dedos.size === 2 && gesto.distInicial > 0) {
+      escalaAR = THREE.MathUtils.clamp(gesto.escalaInicial * (distanciaDedos() / gesto.distInicial), ESCALA_AR_MIN, ESCALA_AR_MAX);
+      globo.scale.setScalar(escalaAR);
+    }
+  });
+  const soltar = (e) => { gesto.dedos.delete(e.pointerId); };
+  capa.addEventListener('pointerup', soltar);
+  capa.addEventListener('pointercancel', soltar);
+}
+
+// ============================== Sesiones WebXR ==============================
+let fuenteHitTest = null;
+let colocando = false;
+let colocarFrente = false;
+let relojSinSuperficie;
+
 async function detectarSoporte() {
+  if (!window.isSecureContext) { $('xr-soporte').textContent = 'AR y VR necesitan HTTPS (GitHub Pages ya lo tiene).'; return; }
   const xr = navigator.xr;
-  if (!window.isSecureContext) {
-    $('vr-soporte').textContent = 'WebXR necesita HTTPS (GitHub Pages ya lo tiene).';
-    return;
-  }
   if (!xr) {
-    $('vr-soporte').textContent = 'Este navegador no soporta WebXR (por ejemplo Safari en iPhone). Puedes usar el globo en 3D aquí mismo: arrastra para girar y toca un país.';
+    $('xr-soporte').textContent = 'Este navegador no tiene WebXR (por ejemplo Safari en iPhone). Usa la vista 3D: arrastra para girar y toca un país.';
     return;
   }
-  const [vr, ar] = await Promise.all([
-    xr.isSessionSupported('immersive-vr').catch(() => false),
+  const [ar, vr] = await Promise.all([
     xr.isSessionSupported('immersive-ar').catch(() => false),
+    xr.isSessionSupported('immersive-vr').catch(() => false),
   ]);
-  $('btn-vr').hidden = !vr;
   $('btn-ar').hidden = !ar;
-  $('vr-soporte').textContent = vr || ar
-    ? (vr ? 'Visor detectado. ' : '') + (ar ? 'Tu celular soporta realidad aumentada. ' : '')
-    : 'Tu dispositivo no tiene visor ni AR. Usa la vista 3D: arrastra para girar y toca un país.';
+  $('btn-vr').hidden = !vr;
+  $('xr-soporte').textContent = ar || vr
+    ? (ar ? 'Tu celular soporta realidad aumentada. ' : '') + (vr ? 'Visor de realidad virtual detectado.' : '')
+    : 'Tu dispositivo no tiene AR ni visor. Usa la vista 3D: arrastra para girar y toca un país.';
 }
 
 async function entrarXR(modo) {
   try {
     const opciones = modo === 'immersive-ar'
-      ? { optionalFeatures: ['dom-overlay', 'local-floor'], domOverlay: { root: $('ui') } }
+      ? { optionalFeatures: ['hit-test', 'dom-overlay', 'local-floor'], domOverlay: { root: $('ui') } }
       : { optionalFeatures: ['local-floor', 'bounded-floor', 'hand-tracking'] };
     const sesion = await navigator.xr.requestSession(modo, opciones);
     renderer.xr.setReferenceSpaceType(modo === 'immersive-ar' ? 'local' : 'local-floor');
@@ -399,93 +486,156 @@ async function entrarXR(modo) {
     modoXR = modo;
     document.body.classList.add('en-xr');
     orbita.enabled = false;
+    sesion.addEventListener('end', salirXR);
+
     if (modo === 'immersive-ar') {
       escena.background = null;
-      estrellas.visible = false;
-      globo.scale.setScalar(ESCALA_AR);
-      panel.malla.visible = false;
+      escalaAR = ESCALA_AR;
+      globo.scale.setScalar(escalaAR);
+      inclinar.rotation.x = 0.35; // un poco inclinado hacia ti, como un globo de escritorio
+      $('ar-gestos').hidden = false;
       $('ar-controles').hidden = false;
-      colocarFrente = true;
+      try {
+        const espacioVista = await sesion.requestReferenceSpace('viewer');
+        fuenteHitTest = await sesion.requestHitTestSource({ space: espacioVista });
+      } catch { fuenteHitTest = null; }
+      empezarColocacion();
     } else {
-      escena.background = new THREE.Color('#050912');
-      estrellas.visible = true;
+      escena.background = new THREE.Color('#E2E6E9');
       globo.scale.setScalar(ESCALA_VR);
       ancla.position.set(0, 1.3, -1.0);
+      inclinar.rotation.x = 0.2;
       actualizarPanelVR();
     }
-    sesion.addEventListener('end', salirXR);
+    actualizarFicha();
   } catch (e) {
     console.error(e);
-    aviso('No se pudo iniciar la sesión XR en este dispositivo.');
+    cintillo('No se pudo iniciar AR/VR en este dispositivo.');
   }
+}
+
+function empezarColocacion() {
+  ancla.visible = false;
+  if (fuenteHitTest) {
+    colocando = true;
+    indicacion('<b>Busca una mesa o el piso</b><br>Mueve el celular despacio y toca cuando aparezca el círculo');
+    clearTimeout(relojSinSuperficie);
+    // Si no encuentra superficie en 8 s, lo pone frente a ti.
+    relojSinSuperficie = setTimeout(() => { if (colocando && !reticula.visible) { colocando = false; colocarFrente = true; } }, 8000);
+  } else {
+    colocando = false;
+    colocarFrente = true;
+  }
+}
+
+function colocarEnReticula() {
+  if (!reticula.visible) return;
+  ancla.position.setFromMatrixPosition(reticula.matrix);
+  ancla.position.y += 0.24 * (escalaAR / ESCALA_AR); // flota encima de la superficie
+  mirarHaciaMi();
+  terminarColocacion();
+}
+
+function mirarHaciaMi() {
+  const cam = new THREE.Vector3().setFromMatrixPosition(renderer.xr.getCamera().matrixWorld);
+  ancla.rotation.set(0, Math.atan2(cam.x - ancla.position.x, cam.z - ancla.position.z), 0);
+}
+
+function terminarColocacion() {
+  colocando = false;
+  reticula.visible = false;
+  ancla.visible = true;
+  clearTimeout(relojSinSuperficie);
+  indicacion('<b>Toca</b> un país · <b>arrastra</b> para girar · <b>pellizca</b> para el tamaño', 4500);
+}
+
+let relojIndicacion;
+function indicacion(html, duracion = 0) {
+  const el = $('ar-indicacion');
+  el.innerHTML = html;
+  el.hidden = false;
+  clearTimeout(relojIndicacion);
+  if (duracion) relojIndicacion = setTimeout(() => { el.hidden = true; }, duracion);
 }
 
 function salirXR() {
   modoXR = null;
   document.body.classList.remove('en-xr');
+  $('ar-gestos').hidden = true;
   $('ar-controles').hidden = true;
+  $('ar-indicacion').hidden = true;
+  fuenteHitTest = null;
+  colocando = false;
+  reticula.visible = false;
+  ancla.visible = true;
   escena.background = null;
-  estrellas.visible = true;
   globo.scale.setScalar(ESCALA_VR);
-  ancla.position.set(0, 1.3, -1.2);
+  ancla.position.set(0, 1.3, -1.1);
   ancla.rotation.set(0, 0, 0);
+  inclinar.rotation.set(0, 0, 0);
   camara.position.set(0, 1.3, 0);
   orbita.target.copy(ancla.position);
   orbita.enabled = true;
   panel.malla.visible = false;
-  girarAR = 0;
+  actualizarFicha();
 }
 
-// ---------- Ciclo de dibujo ----------
-let colocarFrente = false;
-let girarAR = 0;
-const reloj = new THREE.Clock();
+function conectarUI() {
+  $('ficha-cerrar').addEventListener('click', cerrarFicha);
+  $('btn-ar').addEventListener('click', () => entrarXR('immersive-ar'));
+  $('btn-vr').addEventListener('click', () => entrarXR('immersive-vr'));
+  $('ar-salir').addEventListener('click', () => renderer.xr.getSession()?.end());
+  $('ar-colocar').addEventListener('click', empezarColocacion);
+  // Que tocar botones o la ficha no cuente también como "tocar el globo" dentro de AR.
+  $('ui').addEventListener('beforexrselect', (e) => {
+    if (e.target.closest('button, a, .ficha, .barra')) e.preventDefault();
+  });
+  conectarGestos();
+}
+
+// ============================== Ciclo de dibujo ==============================
+const relojCuadro = new THREE.Clock();
 const vTmp = new THREE.Vector3();
 
-function cuadro() {
-  const dt = Math.min(reloj.getDelta(), 0.1);
+function cuadro(_t, frame) {
+  const dt = Math.min(relojCuadro.getDelta(), 0.1);
 
   if (modoXR) {
     const camXR = renderer.xr.getCamera();
-    // AR: al entrar, poner el globo 0.6 m frente a la cara.
+    if (colocando && frame && fuenteHitTest) {
+      const resultados = frame.getHitTestResults(fuenteHitTest);
+      if (resultados.length) {
+        const pose = resultados[0].getPose(renderer.xr.getReferenceSpace());
+        reticula.visible = !!pose;
+        if (pose) reticula.matrix.fromArray(pose.transform.matrix);
+      } else {
+        reticula.visible = false;
+      }
+    }
     if (colocarFrente) {
       const pos = new THREE.Vector3().setFromMatrixPosition(camXR.matrixWorld);
       const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(camXR.quaternion);
       dir.y = 0; dir.normalize();
-      ancla.position.copy(pos).addScaledVector(dir, 0.6);
-      ancla.position.y -= 0.05;
+      ancla.position.copy(pos).addScaledVector(dir, 0.55);
+      ancla.position.y -= 0.08;
+      mirarHaciaMi();
       colocarFrente = false;
+      terminarColocacion();
     }
-    // Girar: botón de agarre + mover el control, palanca del control, o botones ⟲ ⟳ en AR.
+    // VR: agarre + mover el control, o palanca del control.
     for (const c of controles) {
-      if (c.userData.agarre) ancla.rotation.y = c.userData.agarre.giro + (posicionX(c) - c.userData.agarre.x) * 6;
+      if (c.userData.agarre) girar.rotation.y = c.userData.agarre.giro + (posX(c) - c.userData.agarre.x) * 6;
     }
     for (const fuente of renderer.xr.getSession()?.inputSources || []) {
       const ejes = fuente.gamepad?.axes;
-      if (ejes && ejes.length >= 4 && Math.abs(ejes[2]) > 0.15) ancla.rotation.y += ejes[2] * dt * 1.6;
+      if (ejes && ejes.length >= 4) {
+        if (Math.abs(ejes[2]) > 0.15) girar.rotation.y += ejes[2] * dt * 1.6;
+        if (Math.abs(ejes[3]) > 0.15) inclinar.rotation.x = THREE.MathUtils.clamp(inclinar.rotation.x + ejes[3] * dt * 1.2, -1.1, 1.1);
+      }
     }
-    if (girarAR) ancla.rotation.y += girarAR * dt * 1.2;
-    // El letrero siempre mira hacia la persona.
-    if (panel.malla.visible) {
-      camXR.getWorldPosition(vTmp);
-      panel.malla.lookAt(vTmp);
-    }
+    if (panel.malla.visible) { camXR.getWorldPosition(vTmp); panel.malla.lookAt(vTmp); }
   } else {
     orbita.update();
   }
-
-  estrellas.rotation.y += dt * 0.005;
   renderer.render(escena, camara);
-}
-
-function crearEstrellas() {
-  const n = 1500;
-  const pos = new Float32Array(n * 3);
-  for (let i = 0; i < n; i++) {
-    const v = new THREE.Vector3().randomDirection().multiplyScalar(40 + Math.random() * 40);
-    pos.set([v.x, v.y, v.z], i * 3);
-  }
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  return new THREE.Points(geo, new THREE.PointsMaterial({ color: 0xffffff, size: 0.12, sizeAttenuation: true }));
 }

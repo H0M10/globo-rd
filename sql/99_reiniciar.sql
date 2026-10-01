@@ -1,4 +1,7 @@
--- 99 · Reiniciar el juego (borra jugadores, reclamos y bitácora; conserva países y colores).
--- Úsalo antes de la exposición para empezar en limpio.
+-- 99 · Reiniciar el juego: borra jugadores, reclamos y bitácora, y regresa los
+-- contadores SERIAL a 1 (TRUNCATE … RESTART IDENTITY). Conserva países y colores.
+-- Es lo mismo que el botón "Reiniciar juego" del panel /admin/.
 SELECT reiniciar_juego();
-SELECT configurar_juego(5, true);
+
+-- Comprobación: el próximo jugador será el número 1.
+SELECT last_value, is_called FROM jugadores_id_seq;

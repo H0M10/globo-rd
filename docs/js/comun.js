@@ -60,8 +60,13 @@ export const MENSAJES = {
   color_ocupado: 'Alguien acaba de elegir ese color. Escoge otro.',
   color_invalido: 'Ese color no está en la paleta.',
   ocupado: 'Ese país ya tiene dueño.',
+  protegido: 'Ese país está protegido unos segundos.',
+  ya_es_tuyo: 'Ese país ya es tuyo.',
+  en_camino: 'Ya lo estás conquistando…',
   limite: 'Ya llegaste al máximo de países. Libera uno para reclamar otro.',
   juego_cerrado: 'El juego está cerrado por ahora.',
+  ronda_no_iniciada: 'La ronda todavía no empieza. ¡Prepárate!',
+  ronda_terminada: 'La ronda ya terminó.',
   pais_invalido: 'Ese país no existe en el mapa.',
   jugador_invalido: 'Tu sesión ya no es válida. Vuelve a registrarte.',
   no_es_tuyo: 'Ese país no es tuyo.',
@@ -69,3 +74,20 @@ export const MENSAJES = {
 };
 
 export const mensaje = (codigo) => MENSAJES[codigo] || `Error: ${codigo}`;
+
+// 125 → "02:05"
+export function reloj(ms) {
+  const s = Math.max(0, Math.ceil(ms / 1000));
+  return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+}
+
+// Ranking con desempate: más países gana; si empatan, quien llegó primero a esa cantidad.
+export function ordenarRanking(jugadores, reclamos, ultimoPorJugador = new Map()) {
+  const cuenta = new Map();
+  for (const id of reclamos.values()) cuenta.set(id, (cuenta.get(id) || 0) + 1);
+  return [...jugadores.values()]
+    .map((j) => ({ ...j, paises: cuenta.get(j.id) || 0, ultimo: ultimoPorJugador.get(j.id) ?? j.ultimo ?? null }))
+    .sort((a, b) => b.paises - a.paises
+      || (a.ultimo && b.ultimo ? Date.parse(a.ultimo) - Date.parse(b.ultimo) : a.ultimo ? -1 : b.ultimo ? 1 : 0)
+      || a.nombre.localeCompare(b.nombre, 'es'));
+}

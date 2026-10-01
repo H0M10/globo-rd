@@ -21,6 +21,7 @@ if (fs.existsSync(archivoEnv)) {
   console.warn('No existe api/.env — copia .env.example a .env y llénalo.');
 }
 
+process.env.PG_POOL_MAX ??= '8'; // aquí llegan muchas peticiones a la vez (todos los celulares)
 const { handler } = await import('./index.mjs');
 const PUERTO = Number(process.env.PORT || 8787);
 const DOCS = path.resolve(aqui, '..', 'docs');

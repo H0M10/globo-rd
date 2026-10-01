@@ -24,9 +24,9 @@ function obtenerPool() {
     user: process.env.PGUSER,
     password: process.env.PGPASSWORD,
     ssl,
-    max: 2,
+    max: Number(process.env.PG_POOL_MAX || 2),   // Lambda atiende 1 petición por contenedor; el servidor local usa más
     idleTimeoutMillis: 60_000,
-    connectionTimeoutMillis: 5_000,
+    connectionTimeoutMillis: 10_000,
   });
   pool.on('error', (e) => console.error('pool', e.message));
   return pool;
@@ -137,7 +137,8 @@ export async function handler(event) {
       if (!ISO_RE.test(iso)) return falla(400, 'pais_invalido');
       const { rows } = await db.query('SELECT * FROM reclamar_pais($1, $2)', [cuerpo.token, iso]);
       const r = rows[0] || { resultado: 'pais_invalido' };
-      return ok({ resultado: r.resultado, dueno: r.dueno, color: r.dueno_color });
+      // resultado: ok | robado (dueno = a quién se lo quitaste) | ya_es_tuyo | protegido (espera = segundos) | …
+      return ok({ resultado: r.resultado, dueno: r.dueno, color: r.dueno_color, espera: r.espera ?? null });
     }
 
     // POST /liberar {token, iso}
@@ -149,10 +150,17 @@ export async function handler(event) {
       return ok({ resultado: rows[0].resultado });
     }
 
-    // POST /admin {clave, accion: "reiniciar" | "config", max?, abierto?}
+    // POST /admin {clave, accion: "reiniciar" | "config" | "ronda", max?, abierto?, ronda?, minutos?}
     if (metodo === 'POST' && ruta === '/admin') {
       const clave = process.env.ADMIN_KEY || '';
       if (clave.length < 8 || cuerpo.clave !== clave) return falla(403, 'clave_incorrecta');
+      if (cuerpo.accion === 'entrar') return ok({ resultado: 'ok' }); // solo valida la clave (inicio de sesión)
+      if (cuerpo.accion === 'ronda') {
+        if (!['iniciar', 'preparar', 'terminar', 'libre'].includes(cuerpo.ronda)) return falla(400, 'accion_invalida');
+        const minutos = Number.isInteger(cuerpo.minutos) ? cuerpo.minutos : null;
+        const { rows } = await db.query('SELECT controlar_ronda($1, $2) AS resultado', [cuerpo.ronda, minutos]);
+        return ok({ resultado: rows[0].resultado });
+      }
       if (cuerpo.accion === 'reiniciar') {
         await db.query('SELECT reiniciar_juego()');
         return ok({ resultado: 'ok' });
@@ -160,7 +168,8 @@ export async function handler(event) {
       if (cuerpo.accion === 'config') {
         const max = Number.isInteger(cuerpo.max) ? cuerpo.max : null;
         const abierto = typeof cuerpo.abierto === 'boolean' ? cuerpo.abierto : null;
-        await db.query('SELECT configurar_juego($1, $2)', [max, abierto]);
+        if (max !== null || abierto !== null) await db.query('SELECT configurar_juego($1, $2)', [max, abierto]);
+        if (Number.isInteger(cuerpo.proteccion)) await db.query('SELECT configurar_proteccion($1)', [cuerpo.proteccion]);
         return ok({ resultado: 'ok' });
       }
       return falla(400, 'accion_invalida');
