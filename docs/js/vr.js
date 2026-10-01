@@ -1,21 +1,24 @@
 // Modo AR / VR con WebXR (three.js + three-globe).
-//   * Android con Chrome y ARCore: el globo se coloca sobre una mesa o el piso (detección de superficies);
-//     tocar = conquistar/robar, arrastrar = girar e inclinar, pellizcar = cambiar tamaño.
-//   * Meta Quest: realidad virtual; gatillo = conquistar/robar, agarre o palanca = girar.
+//   * Android con Chrome y ARCore: el globo aparece al instante frente a ti; «Poner en la mesa» lo
+//     coloca sobre una superficie. Tocar país libre = conquistar; tocar país ajeno = ficha con «Liberar».
+//     Arrastrar = girar e inclinar, pellizcar = cambiar tamaño.
+//   * Meta Quest: gatillo en país libre = conquistar; gatillo dos veces en uno ajeno = liberar.
 //   * iPhone y computadoras sin visor: vista 3D normal con los mismos gestos.
-import * as THREE from 'three';
-import ThreeGlobe from 'three-globe';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+// Rendimiento: todos los países tienen la misma altura, así three-globe nunca reconstruye
+// la geometría al cambiar de dueño (solo cambia el color), y la AR se dibuja a 75 % de resolución.
+// three.js + three-globe empaquetados en un solo archivo (herramientas/xr-entrada.mjs → npm run xr).
+import { THREE, ThreeGlobe, OrbitControls } from './vendor/xr.js';
 import { configurada } from './api.js';
 import { crearJuego } from './juego.js';
-import { cargarPaises, escapar, oscurecer, mensaje, reloj } from './comun.js';
+import { cargarPaises, escapar, oscurecer, mensaje, reloj, textoSobre } from './comun.js';
 
 const $ = (id) => document.getElementById(id);
-const OCEANO = '#A9BCCB';
-const TIERRA = '#F7F8F9';
-const TIERRA_LADO = '#C9D2DA';
-const BORDE = '#7A8794';
-const BORDE_DUENO = '#2E343B';
+const OCEANO = '#0B1F3A';
+const TIERRA = '#2E405E';
+const TIERRA_LADO = '#1A2740';
+const BORDE = '#5B7090';
+const BORDE_DUENO = 'rgba(255,255,255,0.55)';
+const ALTURA = 0.008;                     // misma para todos: cambiar de dueño no reconstruye geometría
 const ESCALA_VR = 0.003;                  // three-globe mide 100 unidades de radio → 30 cm
 const ESCALA_AR = 0.0016;                 // → 16 cm, cabe sobre una mesa
 const ESCALA_AR_MIN = 0.0007, ESCALA_AR_MAX = 0.006;
@@ -29,8 +32,8 @@ const juego = crearJuego({
   alCambiar: () => { pintar(); sincronizarNombres(); actualizarFicha(); actualizarYo(); },
   alEvento: (e) => {
     if (s.yo && e.nombre === s.yo.nombre) return;
-    if (e.tipo === 'robo' && s.yo && e.victima === s.yo.nombre) { cintillo(`¡<b>${escapar(e.nombre)}</b> te quitó ${escapar(e.pais)}!`, e.color); vibrar(); }
-    else if (e.tipo === 'robo') cintillo(`<b>${escapar(e.nombre)}</b> le quitó ${escapar(e.pais)} a ${escapar(e.victima)}`, e.color);
+    if (e.tipo === 'liberacion' && s.yo && e.victima === s.yo.nombre) { cintillo(`¡<b>${escapar(e.nombre)}</b> liberó tu ${escapar(e.pais)}!`, e.color); vibrar(); }
+    else if (e.tipo === 'liberacion' && e.victima) cintillo(`<b>${escapar(e.nombre)}</b> liberó ${escapar(e.pais)} de ${escapar(e.victima)}`, e.color);
     else if (e.tipo === 'reclamo') cintillo(`<b>${escapar(e.nombre)}</b> conquistó ${escapar(e.pais)}`, e.color);
   },
   alConexion: (ok) => {
@@ -112,10 +115,13 @@ async function iniciar() {
   await document.fonts?.load('800 48px "Big Shoulders Display"').catch(() => {});
 
   globo = new ThreeGlobe({ animateIn: false })
-    .showAtmosphere(false)
-    .showGraticules(true)
+    .showAtmosphere(true)
+    .atmosphereColor('#7FB4E3')
+    .atmosphereAltitude(0.14)
     .polygonsData(paises)
-    .polygonsTransitionDuration(0); // dentro de XR el navegador pausa requestAnimationFrame: sin animaciones de transición
+    .polygonCapCurvatureResolution(8)     // menos triángulos: más fluido en el celular
+    .polygonAltitude(ALTURA)
+    .polygonsTransitionDuration(0);       // dentro de XR el navegador pausa requestAnimationFrame: sin transiciones
   globo.globeMaterial().color.set(OCEANO);
   globo.scale.setScalar(ESCALA_VR);
   globo.add(nombres);
@@ -138,16 +144,17 @@ function duenoDe(iso) {
 }
 const esMio = (d) => !!(d && s.yo && d.id === s.yo.id);
 
+// Solo vuelve a pintar si de verdad cambió algo (dueños o selección).
+let firmaPintada = '';
 function pintar() {
   if (!globo) return;
+  const firma = `${seleccion}|${[...s.reclamos].map(([iso, id]) => iso + id).join()}|${[...s.jugadores.values()].map((j) => j.id + j.color).join()}`;
+  if (firma === firmaPintada) return;
+  firmaPintada = firma;
   globo
     .polygonCapColor((f) => duenoDe(f.properties.iso)?.color || TIERRA)
     .polygonSideColor((f) => { const d = duenoDe(f.properties.iso); return d ? oscurecer(d.color, 0.6) : TIERRA_LADO; })
-    .polygonStrokeColor((f) => (f.properties.iso === seleccion ? '#111316' : duenoDe(f.properties.iso) ? BORDE_DUENO : BORDE))
-    .polygonAltitude((f) => {
-      const d = duenoDe(f.properties.iso);
-      return (d ? (esMio(d) ? 0.02 : 0.012) : 0.004) + (f.properties.iso === seleccion ? 0.02 : 0);
-    });
+    .polygonStrokeColor((f) => (f.properties.iso === seleccion ? '#FFFFFF' : duenoDe(f.properties.iso) ? BORDE_DUENO : BORDE));
 }
 
 // ============================== Nombres sobre el globo (sprites) ==============================
@@ -165,13 +172,13 @@ function texturaNombre(nombre, color) {
   const ancho = Math.ceil(ctx.measureText(texto).width) + 52;
   lienzo.width = ancho; lienzo.height = 60;
   ctx.font = fuente;
-  ctx.fillStyle = 'rgba(255,255,255,0.92)';
-  ctx.fillRect(0, 6, ancho, 48);
+  ctx.fillStyle = 'rgba(8, 14, 28, 0.82)';
+  ctx.beginPath(); ctx.roundRect(0, 6, ancho, 48, 10); ctx.fill();
   ctx.fillStyle = color;
-  ctx.fillRect(8, 18, 24, 24);
-  ctx.fillStyle = '#111316';
+  ctx.beginPath(); ctx.roundRect(10, 18, 24, 24, 5); ctx.fill();
+  ctx.fillStyle = '#FFFFFF';
   ctx.textBaseline = 'middle';
-  ctx.fillText(texto, 40, 32);
+  ctx.fillText(texto, 42, 32);
   const textura = new THREE.CanvasTexture(lienzo);
   textura.colorSpace = THREE.SRGBColorSpace;
   const dato = { textura, aspecto: ancho / 60 };
@@ -191,7 +198,7 @@ function sincronizarNombres() {
       sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: textura, depthWrite: false }));
       sp.layers.set(CAPA_NOMBRES); // el rayo de selección (capa 0) no los toca
       const p = porIso.get(iso).properties;
-      const c = globo.getCoords(p.lat, p.lng, 0.06);
+      const c = globo.getCoords(p.lat, p.lng, 0.05);
       sp.position.set(c.x, c.y, c.z);
       nombres.add(sp);
       letreros.set(iso, sp);
@@ -270,12 +277,15 @@ function alSeleccionarXR(control) {
   if (iso) tocarPais(iso); else cerrarFicha();
 }
 
-// ============================== Conquistar / robar ==============================
+// ============================== Conquistar / liberar ==============================
+// Libre → un toque lo conquista. Con dueño → ficha con «Liberar»; ya libre, se conquista.
+// En VR (sin botones de pantalla): segundo gatillo sobre el mismo país ajeno = liberar.
 function tocarPais(iso) {
   if (!s.yo) { mostrarFicha(iso); cintillo('Primero regístrate en la página principal'); return; }
   const d = duenoDe(iso);
-  if (esMio(d) || !juego.sePuedeReclamar() || juego.proteccionRestante(iso) > 0) { mostrarFicha(iso); return; }
-  conquistar(iso);
+  if (!d && juego.sePuedeReclamar()) { conquistar(iso); return; }
+  if (modoXR === 'immersive-vr' && d && seleccion === iso && juego.sePuedeReclamar()) { liberar(iso); return; }
+  mostrarFicha(iso);
 }
 
 async function conquistar(iso) {
@@ -284,12 +294,34 @@ async function conquistar(iso) {
   try {
     const r = await juego.reclamar(iso);
     if (r.resultado === 'ok') { cintillo(`<b>${escapar(nombre)}</b> es tuyo`, s.yo?.color); vibrar(); }
-    else if (r.resultado === 'robado') { cintillo(`Le quitaste <b>${escapar(nombre)}</b> a ${escapar(r.dueno)}`, s.yo?.color); vibrar(); }
-    else if (r.resultado === 'protegido') cintillo(`<b>${escapar(nombre)}</b> protegido ${r.espera} s`, r.color);
+    else if (r.resultado === 'ocupado') cintillo(`Te ganó <b>${escapar(r.dueno)}</b>`, r.color);
     else if (r.resultado !== 'en_camino' && r.resultado !== 'ya_es_tuyo') cintillo(escapar(mensaje(r.resultado)));
   } catch (e) {
     cintillo(escapar(mensaje(e.codigo)));
   }
+  actualizarFicha();
+}
+
+async function liberar(iso) {
+  const nombre = porIso.get(iso).properties.nombre;
+  const eraMio = esMio(duenoDe(iso));
+  try {
+    const r = await juego.liberar(iso);
+    if (r.resultado === 'ok') cintillo(eraMio ? `Soltaste <b>${escapar(nombre)}</b>` : `Liberaste <b>${escapar(nombre)}</b>: ¡conquístalo!`, r.color);
+    else if (r.resultado === 'protegido') cintillo(`<b>${escapar(nombre)}</b> protegido ${r.espera} s`, r.color);
+    else cintillo(escapar(mensaje(r.resultado)));
+    vibrar();
+  } catch (e) {
+    cintillo(escapar(mensaje(e.codigo)));
+  }
+  actualizarFicha();
+}
+
+async function accionFicha() {
+  if (!seleccion || !s.yo) return;
+  const iso = seleccion;
+  $('ficha-accion').disabled = true;
+  if (duenoDe(iso)) await liberar(iso); else await conquistar(iso);
 }
 
 function vibrar() {
@@ -299,14 +331,11 @@ function vibrar() {
 }
 
 // ============================== Ficha y avisos ==============================
-let relojFicha;
 function mostrarFicha(iso) {
   seleccion = iso;
   orbita.autoRotate = false;
   pintar();
   actualizarFicha();
-  clearTimeout(relojFicha);
-  if (modoXR === 'immersive-ar') relojFicha = setTimeout(cerrarFicha, 3500); // en AR que no estorbe
 }
 
 function cerrarFicha() {
@@ -328,6 +357,19 @@ function actualizarFicha() {
   $('ficha-dueno').innerHTML = d
     ? `<span class="muestra-color" style="background:${d.color}"></span>${esMio(d) ? '<b>Es tuyo</b>' : `De <b>${escapar(d.nombre)}</b>`}`
     : 'Libre';
+
+  const b = $('ficha-accion');
+  const prot = juego.proteccionRestante(seleccion);
+  b.hidden = !s.yo;
+  b.className = 'boton';
+  b.style.background = ''; b.style.color = '';
+  b.disabled = false;
+  if (!s.yo) return;
+  if (!juego.sePuedeReclamar()) { b.textContent = juego.fase() === 'espera' ? 'La ronda no ha empezado' : 'La ronda terminó'; b.disabled = true; }
+  else if (esMio(d)) { b.textContent = `Soltar ${p.nombre}`; b.classList.add('secundario'); }
+  else if (d && prot) { b.textContent = `Protegido ${prot} s`; b.disabled = true; }
+  else if (d) { b.textContent = `Liberar ${p.nombre}`; b.classList.add('liberar'); }
+  else { b.textContent = `Conquistar ${p.nombre}`; b.style.background = s.yo.color; b.style.color = textoSobre(s.yo.color); }
 }
 
 let relojCintillo;
@@ -379,36 +421,41 @@ function actualizarPanelVR() {
   const ctx = panel.lienzo.getContext('2d');
   const { width: w, height: h } = panel.lienzo;
   ctx.clearRect(0, 0, w, h);
-  ctx.fillStyle = '#111316'; ctx.fillRect(0, 0, w, 64);
-  ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 64, w, h - 64);
+  ctx.fillStyle = 'rgba(17, 27, 46, 0.94)';
+  ctx.beginPath(); ctx.roundRect(0, 0, w, h, 28); ctx.fill();
+  ctx.strokeStyle = 'rgba(150, 175, 210, 0.35)'; ctx.lineWidth = 3; ctx.stroke();
   ctx.textBaseline = 'middle';
   ctx.font = '800 40px "Big Shoulders Display", sans-serif';
-  ctx.fillStyle = '#ffffff';
-  ctx.fillText(fase === 'jugando' ? `EN JUEGO  ${reloj(juego.restante())}` : fase === 'terminada' ? 'FIN DE LA RONDA' : fase === 'espera' ? 'PREPÁRATE' : 'MODO LIBRE', 28, 34);
+  ctx.fillStyle = fase === 'jugando' ? '#FF5A4D' : '#A3AEC0';
+  ctx.fillText(fase === 'jugando' ? `En juego  ${reloj(juego.restante())}` : fase === 'terminada' ? 'Fin de la ronda' : fase === 'espera' ? 'Prepárate' : 'Modo libre', 32, 40);
   ctx.textAlign = 'right';
-  ctx.fillText(s.yo ? `${s.yo.nombre.toUpperCase()} · ${juego.misPaises()}` : 'SIN REGISTRO', w - 28, 34);
+  ctx.fillStyle = '#A3AEC0';
+  ctx.fillText(s.yo ? `${s.yo.nombre} · ${juego.misPaises()}` : 'Sin registro', w - 32, 40);
   ctx.textAlign = 'left';
-  ctx.fillStyle = '#111316';
+  ctx.fillStyle = '#EEF1F6';
   if (seleccion) {
     const p = porIso.get(seleccion).properties;
-    ctx.font = '900 92px "Big Shoulders Display", sans-serif';
-    ctx.fillText(p.nombre.toUpperCase(), 28, 140);
-    ctx.font = '600 40px "Instrument Sans", sans-serif';
-    if (d) { ctx.fillStyle = d.color; ctx.fillRect(28, 212, 30, 30); ctx.fillStyle = '#111316'; }
-    ctx.fillText(d ? (esMio(d) ? 'Es tuyo' : `De ${d.nombre}`) : 'Libre', d ? 72 : 28, 228);
+    ctx.font = '900 88px "Big Shoulders Display", sans-serif';
+    ctx.fillText(p.nombre, 32, 132);
+    ctx.font = '600 38px "Instrument Sans", sans-serif';
+    if (d) { ctx.fillStyle = d.color; ctx.beginPath(); ctx.roundRect(32, 190, 30, 30, 6); ctx.fill(); ctx.fillStyle = '#EEF1F6'; }
+    ctx.fillText(d ? (esMio(d) ? 'Es tuyo' : `De ${d.nombre}`) : 'Libre', d ? 76 : 32, 206);
+    ctx.fillStyle = '#F2B347';
+    ctx.font = '600 32px "Instrument Sans", sans-serif';
+    ctx.fillText(!d ? '' : esMio(d) ? 'Gatillo otra vez = soltarlo' : 'Gatillo otra vez = liberarlo', 32, 262);
   } else {
-    ctx.font = '800 58px "Big Shoulders Display", sans-serif';
-    ctx.fillText('APUNTA Y PULSA EL GATILLO', 28, 140);
-    ctx.font = '500 34px "Instrument Sans", sans-serif';
-    ctx.fillStyle = '#5A6370';
-    ctx.fillText('Agarre + mover el brazo, o palanca: girar el globo', 28, 214);
+    ctx.font = '800 56px "Big Shoulders Display", sans-serif';
+    ctx.fillText('Apunta a un país y pulsa el gatillo', 32, 130);
+    ctx.font = '500 32px "Instrument Sans", sans-serif';
+    ctx.fillStyle = '#A3AEC0';
+    ctx.fillText('Agarre + mover el brazo, o palanca: girar el globo', 32, 200);
   }
   if (panel.aviso) {
-    ctx.fillStyle = panel.aviso.color || '#111316';
-    ctx.fillRect(0, h - 70, 14, 70);
-    ctx.fillStyle = '#111316';
-    ctx.font = '600 34px "Instrument Sans", sans-serif';
-    ctx.fillText(panel.aviso.texto.slice(0, 46), 32, h - 35);
+    ctx.fillStyle = panel.aviso.color || '#7FB4E3';
+    ctx.beginPath(); ctx.roundRect(32, h - 62, 18, 36, 4); ctx.fill();
+    ctx.fillStyle = '#EEF1F6';
+    ctx.font = '600 32px "Instrument Sans", sans-serif';
+    ctx.fillText(panel.aviso.texto.slice(0, 48), 62, h - 44);
   }
   panel.textura.needsUpdate = true;
   panel.malla.visible = true;
@@ -482,6 +529,8 @@ async function entrarXR(modo) {
       : { optionalFeatures: ['local-floor', 'bounded-floor', 'hand-tracking'] };
     const sesion = await navigator.xr.requestSession(modo, opciones);
     renderer.xr.setReferenceSpaceType(modo === 'immersive-ar' ? 'local' : 'local-floor');
+    // En el celular, dibujar a 75 % de resolución quita los tirones y casi no se nota.
+    renderer.xr.setFramebufferScaleFactor(modo === 'immersive-ar' ? 0.75 : 1);
     await renderer.xr.setSession(sesion);
     modoXR = modo;
     document.body.classList.add('en-xr');
@@ -495,13 +544,16 @@ async function entrarXR(modo) {
       inclinar.rotation.x = 0.35; // un poco inclinado hacia ti, como un globo de escritorio
       $('ar-gestos').hidden = false;
       $('ar-controles').hidden = false;
-      try {
-        const espacioVista = await sesion.requestReferenceSpace('viewer');
-        fuenteHitTest = await sesion.requestHitTestSource({ space: espacioVista });
-      } catch { fuenteHitTest = null; }
-      empezarColocacion();
+      // El globo aparece AL INSTANTE frente a ti (en el primer cuadro). La detección de
+      // superficies se prepara en segundo plano y solo se usa con «Poner en la mesa».
+      colocarFrente = true;
+      fuenteHitTest = null;
+      sesion.requestReferenceSpace('viewer')
+        .then((vista) => sesion.requestHitTestSource({ space: vista }))
+        .then((fuente) => { fuenteHitTest = fuente; })
+        .catch(() => { fuenteHitTest = null; });
     } else {
-      escena.background = new THREE.Color('#E2E6E9');
+      escena.background = new THREE.Color('#050912');
       globo.scale.setScalar(ESCALA_VR);
       ancla.position.set(0, 1.3, -1.0);
       inclinar.rotation.x = 0.2;
@@ -514,18 +566,22 @@ async function entrarXR(modo) {
   }
 }
 
+// Botón «Poner en la mesa»: mientras tanto el globo sigue visible donde estaba.
 function empezarColocacion() {
-  ancla.visible = false;
-  if (fuenteHitTest) {
-    colocando = true;
-    indicacion('<b>Busca una mesa o el piso</b><br>Mueve el celular despacio y toca cuando aparezca el círculo');
-    clearTimeout(relojSinSuperficie);
-    // Si no encuentra superficie en 8 s, lo pone frente a ti.
-    relojSinSuperficie = setTimeout(() => { if (colocando && !reticula.visible) { colocando = false; colocarFrente = true; } }, 8000);
-  } else {
-    colocando = false;
+  if (!fuenteHitTest) {
     colocarFrente = true;
+    cintillo('Tu celular no detecta superficies: lo dejé frente a ti');
+    return;
   }
+  colocando = true;
+  indicacion('<b>Apunta a la mesa o al piso</b><br>Toca cuando aparezca el círculo');
+  clearTimeout(relojSinSuperficie);
+  relojSinSuperficie = setTimeout(() => {
+    if (!colocando) return;
+    colocando = false;
+    reticula.visible = false;
+    indicacion('No encontré una superficie. Prueba con más luz y moviendo el celular despacio.', 3500);
+  }, 12000);
 }
 
 function colocarEnReticula() {
@@ -546,7 +602,7 @@ function terminarColocacion() {
   reticula.visible = false;
   ancla.visible = true;
   clearTimeout(relojSinSuperficie);
-  indicacion('<b>Toca</b> un país · <b>arrastra</b> para girar · <b>pellizca</b> para el tamaño', 4500);
+  indicacion('<b>Toca</b> un país libre · <b>arrastra</b> para girar · <b>pellizca</b> para el tamaño', 4000);
 }
 
 let relojIndicacion;
@@ -582,6 +638,7 @@ function salirXR() {
 
 function conectarUI() {
   $('ficha-cerrar').addEventListener('click', cerrarFicha);
+  $('ficha-accion').addEventListener('click', accionFicha);
   $('btn-ar').addEventListener('click', () => entrarXR('immersive-ar'));
   $('btn-vr').addEventListener('click', () => entrarXR('immersive-vr'));
   $('ar-salir').addEventListener('click', () => renderer.xr.getSession()?.end());

@@ -37,7 +37,8 @@ globo-rds/
    1. `sql/01_esquema.sql` → crea tablas, paleta y funciones.
    2. `sql/02_paises.sql` → carga los 177 países.
    3. `sql/03_usuario_app.sql` → **antes de ejecutarlo**, cambia `CAMBIA_ESTA_CONTRASENA` por una contraseña fuerte. Crea el usuario `globo_app`. Anota esa contraseña.
-   4. `sql/05_rondas.sql` → **modo carrera**: rondas con cronómetro, países sin límite, robos, nueva paleta y reinicio de contadores.
+   4. `sql/05_rondas.sql` → **modo carrera**: rondas con cronómetro, países sin límite y reinicio de contadores.
+   5. `sql/06_liberar.sql` → para quedarte un país ajeno primero hay que **liberarlo** y luego conquistarlo; paleta para el mapa oscuro.
 4. Comprueba: `SELECT count(*) FROM paises;` debe dar **177**, `SELECT count(*) FROM colores;` debe dar **36** y `SELECT fase_ronda();` debe dar **libre**.
 
 ## Paso 2 · Probar en tu laptop (opcional, pero recomendado)

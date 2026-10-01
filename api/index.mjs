@@ -146,8 +146,10 @@ export async function handler(event) {
       const iso = String(cuerpo.iso ?? '').toUpperCase();
       if (!tokenValido(cuerpo.token)) return falla(401, 'jugador_invalido');
       if (!ISO_RE.test(iso)) return falla(400, 'pais_invalido');
-      const { rows } = await db.query('SELECT liberar_pais($1, $2) AS resultado', [cuerpo.token, iso]);
-      return ok({ resultado: rows[0].resultado });
+      // resultado: ok (dueno = de quién era) | ya_libre | protegido (espera = segundos) | ronda_terminada | …
+      const { rows } = await db.query('SELECT * FROM liberar_pais($1, $2)', [cuerpo.token, iso]);
+      const r = rows[0] || { resultado: 'pais_invalido' };
+      return ok({ resultado: r.resultado, dueno: r.dueno ?? null, color: r.dueno_color ?? null, espera: r.espera ?? null });
     }
 
     // POST /admin {clave, accion: "reiniciar" | "config" | "ronda", max?, abierto?, ronda?, minutos?}

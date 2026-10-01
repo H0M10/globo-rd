@@ -3,44 +3,47 @@
 .escena canvas { display: block; }
 .ui-xr { position: fixed; inset: 0; pointer-events: none; z-index: 2; }
 .ui-xr > *:not(.ar-gestos) { pointer-events: auto; }
-.ui-xr .barra { pointer-events: auto; }
 .ar-gestos { position: fixed; inset: 0; pointer-events: auto; touch-action: none; }
 .ui-xr .cintillo, .ui-xr .ar-indicacion { pointer-events: none; } /* no tapan los toques al globo */
 
-.xr-crono { display: inline-flex; align-items: baseline; gap: 6px; margin-right: 8px; font-family: var(--display); font-weight: 800; font-size: 15px; text-transform: uppercase; letter-spacing: .04em; color: #C4C9CF; }
-.xr-crono b { font-size: 22px; color: #fff; font-variant-numeric: tabular-nums; }
-.xr-crono[data-fase="jugando"] b { color: #FF5A4D; }
+.xr-crono { display: inline-flex; align-items: baseline; gap: 6px; margin-right: 8px; font-family: var(--display); font-weight: 800; font-size: 15px; color: var(--suave); }
+.xr-crono b { font-size: 22px; color: var(--texto); font-variant-numeric: tabular-nums; }
+.xr-crono[data-fase="jugando"] b { color: var(--vivo); }
 
 .xr-inicio {
   position: fixed; left: 12px; right: 12px; bottom: calc(env(safe-area-inset-bottom, 0px) + 12px);
   max-width: 480px; margin: 0 auto;
-  background: var(--papel); border: 1px solid var(--tinta); box-shadow: 6px 6px 0 var(--tinta);
-  padding: 16px 18px 18px; display: flex; flex-direction: column; gap: 12px;
+  background: var(--panel); border: 1px solid var(--linea-fuerte); border-radius: 18px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, .55);
+  padding: 18px 18px 18px; display: flex; flex-direction: column; gap: 12px;
 }
-.xr-inicio h1 { font-family: var(--display); font-weight: 900; font-size: clamp(40px, 12vw, 56px); line-height: .88; text-transform: uppercase; }
-.xr-yo { font-size: 15px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.xr-yo a { color: var(--tinta); font-weight: 700; }
+.xr-inicio h1 { font-family: var(--display); font-weight: 900; font-size: clamp(40px, 12vw, 54px); line-height: .9; }
+.xr-yo { font-size: 15px; color: var(--suave); }
+.xr-yo .muestra-color { vertical-align: -1px; margin-right: 6px; }
+.xr-yo b { color: var(--texto); }
+.xr-yo a { color: var(--acento); font-weight: 600; }
 .xr-botones { display: flex; flex-direction: column; gap: 8px; }
-.xr-ayuda { list-style: none; margin: 0; padding: 10px 0 0; border-top: 1px solid var(--regla); display: grid; gap: 4px; font-size: 14px; color: var(--tinta-2); }
-.xr-ayuda b { font-family: var(--display); font-weight: 800; font-size: 16px; text-transform: uppercase; letter-spacing: .03em; color: var(--tinta); }
-.xr-soporte { font-size: 13px; color: var(--gris); }
+.xr-ayuda { list-style: none; margin: 0; padding: 10px 0 0; border-top: 1px solid var(--linea); display: grid; gap: 5px; font-size: 14px; color: var(--suave); }
+.xr-ayuda b { color: var(--texto); font-weight: 700; }
+.xr-soporte { font-size: 13px; color: var(--suave); }
 
 .ar-indicacion {
   position: fixed; left: 12px; right: 12px; top: calc(var(--alto-barra) + 10px);
   max-width: 420px; margin: 0 auto; text-align: center;
-  background: var(--tinta); color: #fff; padding: 10px 14px;
-  font-weight: 600; font-size: 15px;
+  background: rgba(10, 18, 34, .92); color: var(--texto); padding: 10px 14px; border-radius: 12px;
+  border: 1px solid var(--linea-fuerte); font-size: 15px;
 }
-.ar-indicacion b { font-family: var(--display); font-weight: 800; font-size: 18px; text-transform: uppercase; letter-spacing: .03em; }
+.ar-indicacion b { font-weight: 700; }
 
 .ar-controles {
   position: fixed; left: 12px; right: 12px; bottom: calc(env(safe-area-inset-bottom, 0px) + 12px);
   max-width: 420px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
 }
+.ar-controles .boton.secundario { background: rgba(10, 18, 34, .9); }
 .pagina-xr .ficha { bottom: calc(env(safe-area-inset-bottom, 0px) + 76px); }
 .pagina-xr .cintillo { bottom: calc(env(safe-area-inset-bottom, 0px) + 76px); }
 body.pagina-xr:not(.en-xr) .cintillo { bottom: calc(env(safe-area-inset-bottom, 0px) + 330px); }
-body.pagina-xr.con-ficha .cintillo { bottom: calc(env(safe-area-inset-bottom, 0px) + 190px); }
+body.pagina-xr.con-ficha .cintillo { bottom: calc(env(safe-area-inset-bottom, 0px) + 230px); }
 
 /* Durante la sesión AR desaparece la tarjeta de inicio */
 body.en-xr .xr-inicio { display: none !important; }

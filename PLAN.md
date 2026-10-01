@@ -4,6 +4,17 @@ Juego para la exposición de **Amazon RDS con PostgreSQL**: unas 30 personas ent
 
 ---
 
+## 0.1 Versión 3 · Ajustes después de probarlo
+
+| Cambio | Por qué |
+|---|---|
+| **Vuelve el diseño oscuro** (fondo espacial azul, globo azul pizarra, atmósfera) | Al equipo le gustaba más. Se le quitó lo que lo hacía ver «hecho con IA»: etiquetas pequeñas en mayúsculas con letra de máquina de escribir, efecto de vidrio esmerilado (*blur*) y botones de píldora. Ahora los paneles son sólidos, con esquinas de 10–14 px y una sola tipografía de marcador |
+| **Quitar un país ajeno toma 2 pasos**: tocarlo › **Liberar** (botón ámbar) › conquistarlo | Ese segundo de espera lo hace más divertido: mientras lo liberas, otra persona puede ganártelo. `sql/06_liberar.sql`: `reclamar_pais()` ya no roba directo y `liberar_pais()` libera cualquier país, con bloqueo de fila para que dos liberaciones simultáneas no choquen |
+| **Paleta para el mapa oscuro** | Los colores más oscuros (Azul marino, Granate, Grafito, Tierra y Verde militar) se perdían sobre la tierra azul; se cambiaron por tonos claros |
+| **AR: el globo aparece al instante** | Antes esperaba a detectar una superficie (hasta 8 s). Ahora aparece en el primer cuadro frente a ti; «Poner en la mesa» lo coloca sobre una superficie cuando quieras |
+| **AR sin tirones** | 1) Todos los países tienen la misma altura, así three-globe nunca reconstruye la geometría al cambiar de dueño (solo cambia el color). 2) Solo se repinta si algo cambió de verdad. 3) Polígonos más ligeros (`capCurvatureResolution` 8). 4) Se dibuja al 75 % de resolución (`setFramebufferScaleFactor`) |
+| **La página AR carga más rápido** | three.js y three-globe ya no se bajan desde esm.sh en decenas de archivos encadenados: se empaquetan en **un solo archivo** (`docs/js/vendor/xr.js`, 456 KB comprimido) con esbuild (`herramientas/xr-entrada.mjs`, `npm run xr`) |
+
 ## 0. Versión 2 · Modo carrera, nombres en el mapa, AR y diseño nuevo
 
 ### Reglas del juego

@@ -3,23 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#121417">
+<meta name="theme-color" content="#070D1A">
 <title>Globo RDS · AR y VR</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;700;800;900&family=Instrument+Sans:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="css/app.css">
 <link rel="stylesheet" href="css/vr.css">
-<script type="importmap">
-{
-  "imports": {
-    "three": "https://esm.sh/three@0.176.0",
-    "three/": "https://esm.sh/three@0.176.0/",
-    "three/addons/": "https://esm.sh/three@0.176.0/examples/jsm/",
-    "three-globe": "https://esm.sh/three-globe@2?external=three"
-  }
-}
-</script>
+<link rel="modulepreload" href="js/vendor/xr.js">
 </head>
 <body class="pagina-xr">
 
@@ -38,7 +29,6 @@
   </header>
 
   <section id="xr-inicio" class="xr-inicio">
-    <p class="registro-sello">Modo inmersivo</p>
     <h1>Pon el mundo<br>sobre la mesa</h1>
     <p id="xr-yo" class="xr-yo"></p>
     <div class="xr-botones">
@@ -46,9 +36,9 @@
       <button type="button" id="btn-vr" class="boton secundario" hidden>Entrar a realidad virtual</button>
     </div>
     <ul class="xr-ayuda">
-      <li><b>Toca</b> un país para conquistarlo o robarlo</li>
-      <li><b>Arrastra</b> con un dedo para girar el globo</li>
-      <li><b>Pellizca</b> con dos dedos para agrandarlo</li>
+      <li><b>Toca</b> un país libre para conquistarlo</li>
+      <li><b>Toca</b> uno ajeno y pulsa <b>Liberar</b> para poder tomarlo</li>
+      <li><b>Arrastra</b> para girar · <b>pellizca</b> para agrandar</li>
     </ul>
     <p id="xr-soporte" class="xr-soporte"></p>
   </section>
@@ -64,10 +54,11 @@
       <button type="button" class="cerrar" id="ficha-cerrar" aria-label="Cerrar">×</button>
     </div>
     <p id="ficha-dueno" class="ficha-dueno"></p>
+    <button type="button" id="ficha-accion" class="boton" hidden></button>
   </section>
 
   <div id="ar-controles" class="ar-controles" hidden>
-    <button type="button" class="boton secundario" id="ar-colocar">Recolocar</button>
+    <button type="button" class="boton secundario" id="ar-colocar">Poner en la mesa</button>
     <button type="button" class="boton" id="ar-salir">Salir</button>
   </div>
 

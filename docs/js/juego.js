@@ -175,7 +175,8 @@ export function crearJuego(eventos = {}) {
     emitir('alCambiar', s);
     try {
       const r = await api.liberar(s.yo.token, iso);
-      if (r.resultado !== 'ok' && antes !== undefined) { s.reclamos.set(iso, antes); emitir('alCambiar', s); }
+      // "ya_libre": otra persona lo liberó primero; de todos modos ya está libre.
+      if (!['ok', 'ya_libre'].includes(r.resultado) && antes !== undefined) { s.reclamos.set(iso, antes); emitir('alCambiar', s); }
       programar(0);
       return r;
     } catch (e) {

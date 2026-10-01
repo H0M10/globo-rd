@@ -62,6 +62,7 @@ export const MENSAJES = {
   ocupado: 'Ese país ya tiene dueño.',
   protegido: 'Ese país está protegido unos segundos.',
   ya_es_tuyo: 'Ese país ya es tuyo.',
+  ya_libre: 'Alguien ya lo liberó: ¡conquístalo rápido!',
   en_camino: 'Ya lo estás conquistando…',
   limite: 'Ya llegaste al máximo de países. Libera uno para reclamar otro.',
   juego_cerrado: 'El juego está cerrado por ahora.',

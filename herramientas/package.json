@@ -1,0 +1,15 @@
+{
+  "name": "globo-rds-herramientas",
+  "private": true,
+  "type": "module",
+  "description": "Genera el mapa de países y el paquete de librerías 3D para la página de AR/VR",
+  "scripts": {
+    "datos": "node preparar-datos.mjs",
+    "xr": "esbuild xr-entrada.mjs --bundle --format=esm --minify --legal-comments=none --outfile=../docs/js/vendor/xr.js"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "three": "^0.176.0",
+    "three-globe": "^2.41.0"
+  }
+}

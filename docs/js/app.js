@@ -8,12 +8,13 @@ const PROYECTOR = new URLSearchParams(location.search).has('proyector');
 const SIN_HOVER = matchMedia('(hover: none)').matches;
 const NOMBRE_RE = /^[\p{L}\p{N} ._-]{2,20}$/u;
 
-// Mapa político "en blanco": el color lo ponen los jugadores.
-const OCEANO = '#A9BCCB';
-const TIERRA = '#F7F8F9';
-const TIERRA_LADO = '#C9D2DA';
-const BORDE = '#7A8794';
-const BORDE_DUENO = '#2E343B';
+// Globo oscuro: tierra libre en azul pizarra; el color brillante lo ponen los jugadores.
+const OCEANO = '#0B1F3A';
+const TIERRA = '#2E405E';
+const TIERRA_LADO = '#1A2740';
+const BORDE = '#5B7090';
+const BORDE_DUENO = 'rgba(255,255,255,0.55)';
+const BORDE_SELECCION = '#FFFFFF';
 
 let globo;
 let paises = [];
@@ -62,8 +63,9 @@ function crearGlobo() {
   const contenedor = $('globo');
   globo = Globe({ animateIn: false, rendererConfig: { antialias: true, alpha: true, powerPreference: 'high-performance' } })(contenedor)
     .backgroundColor('rgba(0,0,0,0)')
-    .showAtmosphere(false)
-    .showGraticules(true)
+    .showAtmosphere(true)
+    .atmosphereColor('#7FB4E3')
+    .atmosphereAltitude(0.16)
     .polygonsData(paises)
     .polygonsTransitionDuration(180)
     .polygonLabel(SIN_HOVER ? () => '' : etiquetaHover)
@@ -119,7 +121,7 @@ function pintar() {
     .polygonSideColor((f) => { const d = duenoDe(f.properties.iso); return d ? oscurecer(d.color, 0.6) : TIERRA_LADO; })
     .polygonStrokeColor((f) => {
       const iso = f.properties.iso;
-      if (iso === seleccion || iso === destello) return '#111316';
+      if (iso === seleccion || iso === destello) return BORDE_SELECCION;
       return duenoDe(iso) ? BORDE_DUENO : BORDE;
     })
     .polygonAltitude((f) => {
@@ -198,12 +200,13 @@ function moverEtiquetas() {
 }
 
 // ============================== Tocar un país ==============================
+// Libre → un toque lo conquista. Con dueño → se abre la ficha: primero hay que LIBERARLO
+// con el botón y después conquistarlo (y en ese momento alguien más te lo puede ganar).
 function tocarPais(iso) {
   if (PROYECTOR) return;
   if (!s.yo) { mostrarRegistro(); return; }
-  const d = duenoDe(iso);
-  if (esMio(d) || !juego.sePuedeReclamar() || juego.proteccionRestante(iso) > 0) { abrirFicha(iso); return; }
-  conquistar(iso); // libre o de otro: un solo toque lo conquista (o lo roba)
+  if (!duenoDe(iso) && juego.sePuedeReclamar()) { conquistar(iso); return; }
+  abrirFicha(iso);
 }
 
 async function conquistar(iso) {
@@ -212,13 +215,28 @@ async function conquistar(iso) {
   try {
     const r = await juego.reclamar(iso);
     if (r.resultado === 'ok') { cintillo(`<b>${escapar(nombre)}</b> es tuyo`, s.yo?.color); vibrar(20); }
-    else if (r.resultado === 'robado') { cintillo(`Le quitaste <b>${escapar(nombre)}</b> a ${escapar(r.dueno)}`, s.yo?.color); vibrar([20, 40, 20]); }
-    else if (r.resultado === 'protegido') cintillo(`<b>${escapar(nombre)}</b> protegido ${r.espera} s`, r.color);
+    else if (r.resultado === 'ocupado') cintillo(`Te ganó <b>${escapar(r.dueno)}</b>: ${escapar(nombre)} ya es suyo`, r.color);
     else if (r.resultado !== 'en_camino' && r.resultado !== 'ya_es_tuyo') cintillo(escapar(mensaje(r.resultado)));
   } catch (e) {
     cintillo(escapar(mensaje(e.codigo)));
   }
   if (seleccion === iso) actualizarFicha();
+}
+
+async function liberarPais(iso) {
+  const nombre = porIso.get(iso).properties.nombre;
+  const eraMio = esMio(duenoDe(iso));
+  try {
+    const r = await juego.liberar(iso);
+    if (r.resultado === 'ok') {
+      cintillo(eraMio ? `Soltaste <b>${escapar(nombre)}</b>` : `Liberaste <b>${escapar(nombre)}</b>: ¡conquístalo ya!`, r.color);
+      vibrar(15);
+    } else if (r.resultado === 'protegido') cintillo(`<b>${escapar(nombre)}</b> protegido ${r.espera} s`, r.color);
+    else cintillo(escapar(mensaje(r.resultado)));
+  } catch (e) {
+    cintillo(escapar(mensaje(e.codigo)));
+  }
+  actualizarFicha();
 }
 
 function marcarDestello(iso) {
@@ -269,13 +287,14 @@ function actualizarFicha() {
   b.disabled = false;
   const fase = juego.fase();
   if (!s.yo) { b.textContent = 'Regístrate para jugar'; return; }
-  if (esMio(d)) { b.textContent = `Liberar ${p.nombre}`; b.classList.add('secundario'); return; }
   if (!juego.sePuedeReclamar()) {
     b.textContent = fase === 'espera' ? 'La ronda no ha empezado' : fase === 'terminada' ? 'La ronda terminó' : 'Juego cerrado';
     b.disabled = true; return;
   }
-  if (prot) { b.textContent = `Protegido ${prot} s`; b.disabled = true; return; }
-  b.textContent = d ? `Robárselo a ${d.nombre}` : `Conquistar ${p.nombre}`;
+  if (esMio(d)) { b.textContent = `Soltar ${p.nombre}`; b.classList.add('secundario'); return; }
+  if (d && prot) { b.textContent = `Protegido ${prot} s`; b.disabled = true; return; }
+  if (d) { b.textContent = `Liberar ${p.nombre}`; b.classList.add('liberar'); return; }
+  b.textContent = `Conquistar ${p.nombre}`;
   b.style.background = s.yo.color;
   b.style.color = textoSobre(s.yo.color);
 }
@@ -284,16 +303,12 @@ async function accionFicha() {
   if (!seleccion) return;
   if (!s.yo) { mostrarRegistro(); return; }
   const iso = seleccion;
-  const d = duenoDe(iso);
-  if (esMio(d)) {
-    try {
-      const r = await juego.liberar(iso);
-      cintillo(r.resultado === 'ok' ? `Liberaste <b>${escapar(porIso.get(iso).properties.nombre)}</b>` : escapar(mensaje(r.resultado)), s.yo?.color);
-    } catch (e) { cintillo(escapar(mensaje(e.codigo))); }
-    actualizarFicha();
-    return;
-  }
-  await conquistar(iso);
+  const b = $('ficha-accion');
+  b.disabled = true;
+  if (duenoDe(iso)) await liberarPais(iso); // tuyo o ajeno: queda libre
+  else await conquistar(iso);
+  b.disabled = false;
+  actualizarFicha();
 }
 
 // ============================== Cronómetro y fases ==============================
@@ -319,7 +334,7 @@ function actualizarCronometro() {
     etiqueta = 'Fin de la ronda'; tiempo = '00:00'; detalle = l ? `Ganó ${l.nombre} con ${l.paises} países` : 'Nadie conquistó países';
     progreso = 1;
   } else {
-    etiqueta = 'Modo libre'; tiempo = 'Sin tiempo'; detalle = `${textoLider} · se vale robar`;
+    etiqueta = 'Modo libre'; tiempo = 'Sin tiempo'; detalle = textoLider;
   }
   const urgente = fase === 'jugando' && juego.restante() <= 10000;
   for (const [cont, et, ti] of [[$('cronometro'), $('crono-etiqueta'), $('crono-tiempo')], [$('proy-crono'), $('proy-etiqueta'), $('proy-tiempo')]]) {
@@ -379,13 +394,14 @@ function actualizarMarcador() {
   if (yo) eYo.innerHTML = `<span class="muestra-color" style="background:${yo.color}"></span>Tú vas <b>${yo.lugar}.º</b> con <b>${yo.paises}</b> ${yo.paises === 1 ? 'país' : 'países'}`;
   if (PROYECTOR) {
     $('proy-ranking').innerHTML = filasTabla(ranking.slice(0, 10));
-    $('proy-eventos').innerHTML = s.ultimos.filter((e) => ['reclamo', 'robo', 'registro'].includes(e.tipo)).slice(0, 8).map(textoEvento).map((t) => `<li>${t}</li>`).join('');
+    $('proy-eventos').innerHTML = s.ultimos.filter((e) => ['reclamo', 'robo', 'liberacion', 'registro'].includes(e.tipo)).slice(0, 8).map(textoEvento).map((t) => `<li>${t}</li>`).join('');
   }
 }
 
 function textoEvento(e) {
   const quien = `<span class="muestra-color" style="background:${e.color}"></span><b>${escapar(e.nombre)}</b>`;
   if (e.tipo === 'robo') return `${quien} le quitó ${escapar(e.pais)} a ${escapar(e.victima)}`;
+  if (e.tipo === 'liberacion') return e.victima ? `${quien} liberó ${escapar(e.pais)} de ${escapar(e.victima)}` : `${quien} soltó ${escapar(e.pais)}`;
   if (e.tipo === 'reclamo') return `${quien} conquistó ${escapar(e.pais)}`;
   if (e.tipo === 'registro') return `${quien} entró al juego`;
   return '';
@@ -409,10 +425,10 @@ function cintillo(html, color, duracion = 2200) {
 
 function alEvento(e) {
   if (s.yo && e.nombre === s.yo.nombre) return; // lo mío ya lo avisé al instante
-  if (e.tipo === 'robo' && s.yo && e.victima === s.yo.nombre) {
-    cintillo(`¡<b>${escapar(e.nombre)}</b> te quitó ${escapar(e.pais)}!`, e.color, 2600);
+  if ((e.tipo === 'robo' || e.tipo === 'liberacion') && s.yo && e.victima === s.yo.nombre) {
+    cintillo(`¡<b>${escapar(e.nombre)}</b> liberó tu ${escapar(e.pais)}! Recupéralo`, e.color, 2800);
     vibrar([80, 50, 80]);
-  } else if (e.tipo === 'robo' || e.tipo === 'reclamo' || e.tipo === 'registro') {
+  } else if (['robo', 'liberacion', 'reclamo', 'registro'].includes(e.tipo)) {
     cintillo(textoEvento(e).replace(/^<span[^>]*><\/span>/, ''), e.color, 1800);
   } else if (e.tipo === 'reinicio') {
     cintillo('<b>El juego se reinició</b>', null, 2600);
