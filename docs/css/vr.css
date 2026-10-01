@@ -35,15 +35,22 @@
 }
 .ar-indicacion b { font-weight: 700; }
 
+.xr-enlace { font-size: 14px; padding: 9px 12px; border-radius: 10px; background: var(--fondo-2); border: 1px solid var(--linea-fuerte); color: var(--suave); }
+.xr-enlace[data-estado="ok"] { color: var(--ok); border-color: rgba(93, 211, 158, .45); }
+.xr-enlace[data-estado="error"] { color: var(--liberar); border-color: rgba(242, 179, 71, .45); }
+
+/* Controles de AR: botones bajos para no tapar el globo */
 .ar-controles {
-  position: fixed; left: 12px; right: 12px; bottom: calc(env(safe-area-inset-bottom, 0px) + 12px);
-  max-width: 420px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+  position: fixed; left: 10px; right: 10px; bottom: calc(env(safe-area-inset-bottom, 0px) + 10px);
+  max-width: 440px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr .8fr; gap: 6px;
 }
-.ar-controles .boton.secundario { background: rgba(10, 18, 34, .9); }
-.pagina-xr .ficha { bottom: calc(env(safe-area-inset-bottom, 0px) + 76px); }
-.pagina-xr .cintillo { bottom: calc(env(safe-area-inset-bottom, 0px) + 76px); }
+.ar-controles .boton { min-height: 42px; font-size: 17px; border-radius: 10px; }
+.ar-controles .boton.secundario { background: rgba(10, 18, 34, .88); }
+.pagina-xr .ficha { bottom: calc(env(safe-area-inset-bottom, 0px) + 62px); }
+.pagina-xr .cintillo { bottom: calc(env(safe-area-inset-bottom, 0px) + 62px); }
 body.pagina-xr:not(.en-xr) .cintillo { bottom: calc(env(safe-area-inset-bottom, 0px) + 330px); }
-body.pagina-xr.con-ficha .cintillo { bottom: calc(env(safe-area-inset-bottom, 0px) + 230px); }
+body.pagina-xr.con-ficha .cintillo { bottom: calc(env(safe-area-inset-bottom, 0px) + 128px); }
+body.pagina-xr.en-xr .barra { background: rgba(7, 13, 26, .75); }
 
 /* Durante la sesión AR desaparece la tarjeta de inicio */
 body.en-xr .xr-inicio { display: none !important; }

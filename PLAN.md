@@ -4,6 +4,56 @@ Juego para la exposición de **Amazon RDS con PostgreSQL**: unas 30 personas ent
 
 ---
 
+## 0.2 Versión 4 · Investigación de AR/VR y control con la laptop
+
+### ¿Cuál es la mejor forma de hacer realidad aumentada en una página web?
+| Opción | Dónde funciona | Interacción (tocar países) | Veredicto |
+|---|---|---|---|
+| **WebXR `immersive-ar`** (la que usamos) | Android con Chrome + ARCore | Sí, total: tocar, arrastrar, pellizcar | **La mejor** para jugar: rastreo real de 6 grados de libertad y detección de superficies |
+| `<model-viewer>` (Scene Viewer / Quick Look) | Android **y iPhone** | **No**: abre un visor nativo que no ejecuta nuestro código | Sirve para *mirar* un modelo, no para jugar |
+| Seguimiento de imagen (MindAR / AR.js) | Android y iPhone, con la cámara | Sí, pero el globo solo existe mientras la cámara ve un marcador impreso | Interesante para el futuro: todos verían el globo anclado a un póster |
+| Cámara + giroscopio | Casi todos | Sí | Solo 3 grados de libertad: el globo no se queda «en la mesa» al caminar |
+| App nativa (Unity + AR Foundation) | Android / iPhone | Sí | Fuera de alcance: hay que instalar una app |
+
+**Decisión:** quedarse con WebXR, que es la única opción web con rastreo real y que deja tocar países, y **arreglar sus problemas de raíz**.
+
+### Por qué a veces no aparecía el globo
+1. **Se colocaba antes de que el celular supiera dónde estaba.** En los primeros cuadros de una sesión AR, la pose del celular puede no existir o ser *estimada* (`emulatedPosition`), y cuando el rastreo arranca «salta» a la posición real ([WebXR Spatial Tracking](https://immersive-web.github.io/webxr/spatial-tracking-explainer.html), [MDN](https://developer.mozilla.org/en-US/docs/Web/API/WebXR_Device_API/Spatial_tracking)). Si el globo se fijaba en ese primer cuadro, podía quedar detrás de ti o lejos.
+   **Arreglo:** el globo **sigue tu vista** hasta que hay 20 cuadros seguidos de rastreo real, y entonces se queda fijo (como máximo 4 s).
+2. **Los nombres no se veían dentro de XR.** Estaban en la capa 3, y three.js reserva las capas 1 y 2 para cada ojo y solo copia algunas capas a las cámaras XR ([three.js #29742](https://github.com/mrdoob/three.js/pull/29742)).
+   **Arreglo:** van en la capa normal y simplemente no participan en el rayo de selección.
+3. **El toque dependía de eventos XR que a veces chocaban con los gestos.**
+   **Arreglo:** en AR el toque se lee directo de la pantalla y se lanza un rayo con la cámara real del celular.
+
+### Tamaño e interacción (lo importante)
+- **Tamaño automático:** con el ángulo real de la cámara del celular (su matriz de proyección), el globo se coloca a la distancia justa para ocupar ~60 % del ancho de la pantalla.
+- **Sensibilidad proporcional:** arrastrar el ancho del globo equivale a girarlo media vuelta, se vea grande o chico. Se siente como «agarrarlo».
+- **Pellizcar** cambia el radio entre 4 y 80 cm. Los nombres crecen y se encogen con el globo.
+- **«Al frente»** lo vuelve a poner delante; **«En la mesa»** muestra un círculo ámbar sobre la superficie detectada y, al tocar, el globo queda apoyado justo encima.
+
+### VR con gafas sin electrónica + la laptop como control
+Las gafas tipo Cardboard solo tienen lentes; todo lo hace el celular (WebXR `immersive-vr` muestra la vista doble). Para manejarlo hacen falta las manos libres, así que **la laptop es el control**:
+
+```mermaid
+flowchart LR
+  L[Laptop · control.html<br>mouse] -- "1. oferta WebRTC" --> A[API Lambda + RDS<br>tabla salas]
+  C[Celular · vr.html?sala=1234<br>en las gafas] -- "2. lee oferta y deja respuesta" --> A
+  L <-. "3. canal directo WebRTC<br>(sin pasar por AWS)" .-> C
+```
+- **Emparejamiento por código de sala** (como Kahoot): la laptop muestra un QR con `vr.html?sala=1234`. Cada laptop controla solo su celular.
+- **¿Por qué WebRTC y no la API?** El giro necesita ~30 mensajes por segundo con muy poco retraso. Por la API serían 1–2 s por mensaje; con WebRTC laptop y celular se hablan directo. RDS solo guarda el «saludo» inicial (`sql/07_salas.sql`).
+- **Mandos:** clic derecho sostenido + mover = girar · clic izquierdo = actuar sobre lo que marca la **mira del centro** · rueda = tamaño · espacio = al frente. Mientras apuntas, la laptop muestra el país y su dueño.
+- **Requisito:** laptop y celular en la **misma red** (o el celular como hotspot). Las redes escolares a veces bloquean conexiones directas entre dispositivos.
+- **Arreglo de «al entrar a VR no se ve nada»:** el globo ya no se pone en un punto fijo del espacio, sino delante de donde miras al entrar.
+
+### Celular: que nada estorbe al globo
+| Antes | Ahora |
+|---|---|
+| Ranking de ~190 px abajo | Una sola línea (el primero y tú), que se despliega al tocarla |
+| Ficha del país de 2 o 3 renglones | Un renglón: «Brasil · ■ Luis [Liberar] ×» |
+| Cronómetro de 2 renglones | Uno |
+| Registro: el botón y los errores quedaban abajo, fuera de la vista | Botón **siempre visible**; dice qué falta; los errores salen junto al campo y junto al botón |
+
 ## 0.1 Versión 3 · Ajustes después de probarlo
 
 | Cambio | Por qué |

@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#070D1A">
+<title>Globo RDS · Control VR</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;700;800;900&family=Instrument+Sans:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="css/app.css">
+<style>
+  body { overflow: hidden; user-select: none; }
+  .control { position: fixed; inset: var(--alto-barra) 0 0 0; display: grid; grid-template-columns: minmax(320px, 400px) 1fr; }
+  .lado { background: var(--fondo-2); border-right: 1px solid var(--linea-fuerte); padding: 22px; display: flex; flex-direction: column; gap: 16px; overflow-y: auto; }
+  .lado h1 { font-family: var(--display); font-weight: 900; font-size: 44px; line-height: .9; }
+  .pasos { margin: 0; padding-left: 20px; display: grid; gap: 6px; color: var(--suave); font-size: 15px; }
+  .pasos b { color: var(--texto); }
+  .qr-caja { display: flex; gap: 14px; align-items: center; background: var(--panel); border: 1px solid var(--linea-fuerte); border-radius: 14px; padding: 14px; }
+  .qr { width: 150px; flex: none; background: #fff; padding: 7px; border-radius: 10px; }
+  .qr svg { display: block; width: 100%; height: auto; }
+  .codigo { font-family: var(--display); font-weight: 900; font-size: 54px; line-height: .9; letter-spacing: .06em; font-variant-numeric: tabular-nums; }
+  .estado-enlace { font-size: 14px; padding: 10px 12px; border-radius: 10px; background: var(--panel); border: 1px solid var(--linea-fuerte); color: var(--suave); }
+  .estado-enlace[data-estado="ok"] { color: var(--ok); border-color: rgba(93, 211, 158, .45); }
+  .estado-enlace[data-estado="error"] { color: var(--liberar); border-color: rgba(242, 179, 71, .45); }
+  .mandos { display: grid; gap: 8px; font-size: 15px; color: var(--suave); }
+  .mandos div { display: flex; gap: 10px; align-items: center; }
+  .tecla { flex: none; min-width: 112px; text-align: center; font-family: var(--display); font-weight: 800; font-size: 16px; color: var(--texto); background: var(--panel); border: 1px solid var(--linea-fuerte); border-radius: 8px; padding: 5px 8px; }
+  .pad { position: relative; display: grid; place-items: center; cursor: crosshair; }
+  .pad.tomado { cursor: none; }
+  .hud { text-align: center; display: flex; flex-direction: column; align-items: center; gap: 10px; pointer-events: none; padding: 20px; }
+  .hud-mira { width: 54px; height: 54px; border-radius: 50%; border: 3px solid var(--texto); opacity: .8; margin-bottom: 8px; }
+  .hud-pais { font-family: var(--display); font-weight: 900; font-size: clamp(48px, 7vw, 96px); line-height: .9; }
+  .hud-dueno { display: flex; gap: 8px; align-items: center; font-size: 20px; color: var(--suave); }
+  .hud-dueno .muestra-color { width: 18px; height: 18px; }
+  .hud-ayuda { font-size: 16px; color: var(--liberar); font-weight: 600; min-height: 22px; }
+  .hud-juego { position: absolute; top: 18px; right: 22px; text-align: right; color: var(--suave); font-size: 15px; pointer-events: none; }
+  .hud-juego b { display: block; font-family: var(--display); font-weight: 900; font-size: 44px; color: var(--texto); line-height: 1; font-variant-numeric: tabular-nums; }
+  .hud-juego[data-fase="jugando"] b { color: var(--vivo); }
+  .tomar { position: absolute; bottom: 22px; left: 50%; transform: translateX(-50%); font-size: 15px; color: var(--suave); background: var(--panel); border: 1px solid var(--linea-fuerte); border-radius: 10px; padding: 8px 14px; pointer-events: none; }
+  @media (max-width: 760px) { .control { grid-template-columns: 1fr; grid-template-rows: auto 1fr; } .lado { border-right: 0; border-bottom: 1px solid var(--linea-fuerte); } }
+</style>
+</head>
+<body>
+<header class="barra">
+  <a class="marca" href="./">GLOBO<span>/</span>RDS</a>
+  <div class="barra-der"><span class="vivo" id="conexion" data-estado="conectando"><i></i><span id="conexion-texto">Control VR</span></span></div>
+</header>
+
+<main class="control">
+  <aside class="lado">
+    <h1>Control<br>para las gafas</h1>
+    <ol class="pasos">
+      <li>Con el celular, <b>escanea este QR</b> (o abre la dirección de abajo).</li>
+      <li>Si no te has registrado, hazlo primero en el celular.</li>
+      <li>En el celular toca <b>Entrar a realidad virtual</b> y ponlo en las gafas.</li>
+      <li>Controla todo desde esta laptop con el mouse.</li>
+    </ol>
+    <div class="qr-caja">
+      <div id="qr" class="qr"></div>
+      <div>
+        <p class="nota" style="color:var(--suave);font-size:13px">Sala</p>
+        <p id="codigo" class="codigo">····</p>
+        <p id="url" style="color:var(--suave);font-size:12px;overflow-wrap:anywhere"></p>
+      </div>
+    </div>
+    <p id="estado" class="estado-enlace">Preparando la sala…</p>
+    <div class="mandos">
+      <div><span class="tecla">Clic derecho</span> mantenlo y mueve el mouse para girar el globo</div>
+      <div><span class="tecla">Clic izquierdo</span> conquistar el país de la mira; en uno ajeno, el 2.º clic lo libera</div>
+      <div><span class="tecla">Rueda</span> agrandar o achicar el globo</div>
+      <div><span class="tecla">Espacio</span> traer el globo al frente</div>
+    </div>
+    <button type="button" class="boton secundario" id="nueva">Generar otro QR</button>
+  </aside>
+
+  <section id="pad" class="pad" aria-label="Zona de control: usa el mouse aquí">
+    <div class="hud-juego" id="hud-juego" data-fase="libre"><span id="hud-yo">—</span><b id="hud-tiempo"></b></div>
+    <div class="hud">
+      <div class="hud-mira" aria-hidden="true"></div>
+      <p id="hud-pais" class="hud-pais">Esperando al celular</p>
+      <p id="hud-dueno" class="hud-dueno"></p>
+      <p id="hud-ayuda" class="hud-ayuda"></p>
+    </div>
+    <p class="tomar" id="tomar">Haz clic aquí para tomar el mouse · Esc para soltarlo</p>
+  </section>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+<script src="js/config.js"></script>
+<script type="module" src="js/control.js"></script>
+</body>
+</html>

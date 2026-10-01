@@ -152,6 +152,33 @@ export async function handler(event) {
       return ok({ resultado: r.resultado, dueno: r.dueno ?? null, color: r.dueno_color ?? null, espera: r.espera ?? null });
     }
 
+    // ----- Salas para emparejar laptop (control) y celular (visor VR) con WebRTC -----
+    // POST /salas {oferta} → {codigo}
+    if (metodo === 'POST' && ruta === '/salas') {
+      const oferta = String(cuerpo.oferta ?? '');
+      if (!oferta.startsWith('v=0') || oferta.length > 19000) return falla(400, 'oferta_invalida');
+      const { rows } = await db.query('SELECT crear_sala($1) AS codigo', [oferta]);
+      return ok({ codigo: rows[0].codigo }, 201);
+    }
+    // GET /salas?codigo=1234 → {oferta, respuesta}
+    if (metodo === 'GET' && ruta === '/salas') {
+      const codigo = String(event.queryStringParameters?.codigo ?? '');
+      if (!/^\d{4}$/.test(codigo)) return falla(400, 'codigo_invalido');
+      const { rows } = await db.query('SELECT * FROM leer_sala($1)', [codigo]);
+      if (!rows.length) return falla(404, 'sala_no_existe');
+      return ok({ oferta: rows[0].oferta, respuesta: rows[0].respuesta });
+    }
+    // POST /salas/respuesta {codigo, respuesta}
+    if (metodo === 'POST' && ruta === '/salas/respuesta') {
+      const codigo = String(cuerpo.codigo ?? '');
+      const respuesta = String(cuerpo.respuesta ?? '');
+      if (!/^\d{4}$/.test(codigo)) return falla(400, 'codigo_invalido');
+      if (!respuesta.startsWith('v=0') || respuesta.length > 19000) return falla(400, 'respuesta_invalida');
+      const { rows } = await db.query('SELECT responder_sala($1, $2) AS resultado', [codigo, respuesta]);
+      if (rows[0].resultado !== 'ok') return falla(404, rows[0].resultado);
+      return ok({ resultado: 'ok' });
+    }
+
     // POST /admin {clave, accion: "reiniciar" | "config" | "ronda", max?, abierto?, ronda?, minutos?}
     if (metodo === 'POST' && ruta === '/admin') {
       const clave = process.env.ADMIN_KEY || '';

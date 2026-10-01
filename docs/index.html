@@ -29,8 +29,8 @@
     <span id="crono-etiqueta" class="crono-etiqueta">Modo libre</span>
     <span id="crono-tiempo" class="crono-tiempo">—</span>
   </div>
-  <p id="crono-detalle" class="crono-detalle">Conquista todos los países que puedas</p>
   <div class="crono-barra" aria-hidden="true"><span id="crono-progreso"></span></div>
+  <p id="crono-detalle" class="crono-detalle" hidden></p>
 </section>
 
 <div id="globo" class="globo" role="application" aria-label="Globo terráqueo: arrastra para girar, pellizca para acercar, toca un país libre para conquistarlo"></div>
@@ -48,25 +48,26 @@
 <div id="cintillo" class="cintillo" aria-live="polite" hidden></div>
 
 <section id="ficha" class="ficha" hidden aria-live="polite">
-  <div class="ficha-cabeza">
-    <div>
-      <p class="ficha-continente" id="ficha-continente"></p>
-      <h2 id="ficha-nombre"></h2>
-    </div>
-    <button type="button" class="cerrar" id="ficha-cerrar" aria-label="Cerrar">×</button>
+  <div class="ficha-info">
+    <h2 id="ficha-nombre"></h2>
+    <p id="ficha-dueno" class="ficha-dueno"></p>
+    <p class="ficha-continente" id="ficha-continente" hidden></p>
   </div>
-  <p id="ficha-dueno" class="ficha-dueno"></p>
-  <button type="button" id="ficha-accion" class="boton" hidden></button>
+  <button type="button" id="ficha-accion" class="boton boton-compacto" hidden></button>
+  <button type="button" class="cerrar" id="ficha-cerrar" aria-label="Cerrar">×</button>
 </section>
 
 <section id="marcador" class="marcador" aria-label="Marcador">
-  <button type="button" id="marcador-alternar" class="marcador-cabeza" aria-expanded="false" aria-controls="marcador-lista">
-    <span>Marcador</span>
+  <button type="button" id="marcador-alternar" class="marcador-cabeza" aria-expanded="false" aria-controls="marcador-cuerpo">
+    <span class="marcador-titulo">Marcador</span>
     <span id="marcador-resumen" class="marcador-resumen"></span>
     <span class="marcador-flecha" aria-hidden="true"></span>
   </button>
-  <ol id="marcador-lista" class="tabla"></ol>
-  <p id="marcador-yo" class="marcador-yo" hidden></p>
+  <div id="marcador-cuerpo" class="marcador-cuerpo">
+    <p id="marcador-total" class="marcador-total"></p>
+    <ol id="marcador-lista" class="tabla"></ol>
+    <p id="marcador-yo" class="marcador-yo" hidden></p>
+  </div>
 </section>
 
 <div id="resultado" class="resultado" hidden role="dialog" aria-modal="true" aria-labelledby="resultado-titulo">
@@ -82,16 +83,29 @@
 
 <div id="registro" class="registro" hidden>
   <form id="form-registro" class="registro-caja" novalidate>
-    <h1>GLOBO<span>/</span>RDS</h1>
-    <p id="registro-intro" class="registro-intro">Gana quien conquiste más países antes de que termine el tiempo. Cada color es de una sola persona.</p>
-    <label for="reg-nombre" class="campo-etiqueta">Tu nombre</label>
-    <input id="reg-nombre" name="nombre" maxlength="20" autocomplete="nickname" autocapitalize="words" enterkeyhint="done" required>
-    <fieldset>
-      <legend class="campo-etiqueta">Tu color <span id="reg-libres"></span></legend>
-      <div id="reg-colores" class="colores" role="radiogroup"></div>
-    </fieldset>
-    <p id="reg-error" class="error" role="alert" hidden></p>
-    <button type="submit" id="reg-enviar" class="boton">Entrar al juego</button>
+    <div class="registro-cabeza">
+      <h1>GLOBO<span>/</span>RDS</h1>
+      <p id="registro-intro" class="registro-intro">Gana quien tenga más países al terminar el tiempo.</p>
+    </div>
+    <div class="registro-cuerpo">
+      <div class="campo">
+        <label for="reg-nombre" class="campo-etiqueta">Tu nombre</label>
+        <input id="reg-nombre" name="nombre" maxlength="20" autocomplete="nickname" autocapitalize="words" enterkeyhint="next" required aria-describedby="reg-nombre-ayuda">
+        <p id="reg-nombre-ayuda" class="ayuda">De 2 a 20 letras o números</p>
+      </div>
+      <fieldset>
+        <legend class="campo-etiqueta">Tu color <span id="reg-libres"></span></legend>
+        <div id="reg-colores" class="colores" role="radiogroup"></div>
+      </fieldset>
+    </div>
+    <div class="registro-pie">
+      <p id="reg-error" class="error" role="alert" hidden></p>
+      <div class="registro-resumen">
+        <span id="reg-muestra" class="muestra-color" hidden></span>
+        <span id="reg-resumen">Escribe tu nombre y elige un color</span>
+      </div>
+      <button type="submit" id="reg-enviar" class="boton" disabled>Entrar al juego</button>
+    </div>
   </form>
 </div>
 

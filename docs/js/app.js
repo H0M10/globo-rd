@@ -53,6 +53,8 @@ async function iniciar() {
     cintillo(mensaje('sin_configurar'), null, 0);
     return;
   }
+  const volver = new URLSearchParams(location.search).get('volver');
+  if (s.yo && volver && /^vr\.html(\?sala=\d{4})?$/.test(volver)) { location.href = volver; return; }
   if (PROYECTOR) iniciarProyector();
   else if (!s.yo) mostrarRegistro();
   juego.iniciar();
@@ -70,7 +72,7 @@ function crearGlobo() {
     .polygonsTransitionDuration(180)
     .polygonLabel(SIN_HOVER ? () => '' : etiquetaHover)
     .onPolygonClick((f) => { if (!fueArrastre()) tocarPais(f.properties.iso); })
-    .onGlobeClick(() => { if (!fueArrastre()) cerrarFicha(); });
+    .onGlobeClick(() => { if (!fueArrastre()) { cerrarFicha(); cerrarMarcador(); } });
 
   globo.globeMaterial().color.set(OCEANO);
   globo.renderer().setPixelRatio(Math.min(window.devicePixelRatio || 1, 2)); // que el celular no se caliente
@@ -248,7 +250,13 @@ function marcarDestello(iso) {
 function vibrar(patron) { try { navigator.vibrate?.(patron); } catch { /* nada */ } }
 
 // ============================== Ficha del país ==============================
+function cerrarMarcador() {
+  $('marcador').classList.remove('abierto');
+  $('marcador-alternar').setAttribute('aria-expanded', 'false');
+}
+
 function abrirFicha(iso, volar = false) {
+  cerrarMarcador();
   seleccion = iso;
   globo.controls().autoRotate = false;
   if (volar) {
@@ -277,8 +285,8 @@ function actualizarFicha() {
   $('ficha-continente').textContent = p.continente;
   $('ficha-nombre').textContent = p.nombre;
   $('ficha-dueno').innerHTML = d
-    ? `<span class="muestra-color" style="background:${d.color}"></span>${esMio(d) ? '<b>Es tuyo</b>' : `De <b>${escapar(d.nombre)}</b>`}${prot ? ` · protegido ${prot} s` : ''}`
-    : 'Libre: nadie lo ha conquistado';
+    ? `· <span class="muestra-color" style="background:${d.color}"></span>${esMio(d) ? '<b>tuyo</b>' : `<b>${escapar(d.nombre)}</b>`}${prot ? ` · ${prot} s` : ''}`
+    : '· libre';
 
   const b = $('ficha-accion');
   b.hidden = false;
@@ -286,15 +294,16 @@ function actualizarFicha() {
   b.style.background = ''; b.style.color = '';
   b.disabled = false;
   const fase = juego.fase();
-  if (!s.yo) { b.textContent = 'Regístrate para jugar'; return; }
+  if (!s.yo) { b.textContent = 'Registrarme'; return; }
   if (!juego.sePuedeReclamar()) {
-    b.textContent = fase === 'espera' ? 'La ronda no ha empezado' : fase === 'terminada' ? 'La ronda terminó' : 'Juego cerrado';
+    b.textContent = fase === 'espera' ? 'Aún no' : fase === 'terminada' ? 'Terminó' : 'Cerrado';
     b.disabled = true; return;
   }
-  if (esMio(d)) { b.textContent = `Soltar ${p.nombre}`; b.classList.add('secundario'); return; }
-  if (d && prot) { b.textContent = `Protegido ${prot} s`; b.disabled = true; return; }
-  if (d) { b.textContent = `Liberar ${p.nombre}`; b.classList.add('liberar'); return; }
-  b.textContent = `Conquistar ${p.nombre}`;
+  // Botón corto (el nombre del país ya está a la izquierda en el mismo renglón).
+  if (esMio(d)) { b.textContent = 'Soltar'; b.classList.add('secundario'); return; }
+  if (d && prot) { b.textContent = `${prot} s`; b.disabled = true; return; }
+  if (d) { b.textContent = 'Liberar'; b.classList.add('liberar'); return; }
+  b.textContent = 'Conquistar';
   b.style.background = s.yo.color;
   b.style.color = textoSobre(s.yo.color);
 }
@@ -387,8 +396,15 @@ function filasTabla(filas) {
 function actualizarMarcador() {
   const ranking = ordenarRanking(s.jugadores, s.reclamos, juego.misUltimos).map((j, i) => ({ ...j, lugar: i + 1 }));
   $('marcador-lista').innerHTML = filasTabla(ranking);
-  $('marcador-resumen').textContent = `${ranking.length} jugadores · ${s.reclamos.size}/${paises.length} países`;
+  $('marcador-total').textContent = `${ranking.length} jugadores · ${s.reclamos.size} de ${paises.length} países conquistados`;
   const yo = s.yo ? ranking.find((j) => j.id === s.yo.id) : null;
+  // Resumen de UNA línea (marcador colapsado): el líder y tu lugar.
+  const l = ranking[0];
+  const partes = [];
+  if (l && l.paises > 0) partes.push(`1.º <span class="muestra-color" style="background:${l.color}"></span><b>${escapar(l.nombre)}</b> ${l.paises}`);
+  if (yo && (!l || yo.id !== l.id || l.paises === 0)) partes.push(`Tú <b>${yo.lugar}.º</b> ${yo.paises}`);
+  if (!partes.length) partes.push(ranking.length ? 'Nadie ha conquistado aún' : 'Sin jugadores');
+  $('marcador-resumen').innerHTML = partes.join('<span class="sep">|</span>');
   const eYo = $('marcador-yo');
   eYo.hidden = !yo;
   if (yo) eYo.innerHTML = `<span class="muestra-color" style="background:${yo.color}"></span>Tú vas <b>${yo.lugar}.º</b> con <b>${yo.paises}</b> ${yo.paises === 1 ? 'país' : 'países'}`;
@@ -501,8 +517,43 @@ function mostrarRegistro(texto) {
   if (!form.dataset.listo) {
     form.dataset.listo = '1';
     form.addEventListener('submit', enviarRegistro);
-    $('reg-colores').addEventListener('change', (e) => { colorElegido = e.target.value; });
+    $('reg-colores').addEventListener('change', (e) => { colorElegido = e.target.value; mostrarErrorRegistro(''); validarRegistro(); });
+    $('reg-nombre').addEventListener('input', () => { nombreTocado = true; nombreRechazado = null; mostrarErrorRegistro(''); validarRegistro(); });
+    // Enter en el nombre: cierra el teclado para que se vean los colores (no envía todavía).
+    $('reg-nombre').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !colorElegido) { e.preventDefault(); $('reg-nombre').blur(); $('reg-colores').scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+    });
   }
+  validarRegistro();
+}
+
+// El botón de abajo siempre está a la vista y dice exactamente qué falta.
+let nombreTocado = false;
+let nombreRechazado = null; // nombre que el servidor dijo que ya existe
+function validarRegistro() {
+  const nombre = $('reg-nombre').value.trim().replace(/\s+/g, ' ');
+  const valido = NOMBRE_RE.test(nombre);
+  const ayuda = $('reg-nombre-ayuda');
+  let textoAyuda = 'De 2 a 20 letras o números';
+  let mal = false;
+  if (nombreRechazado && nombre.toLowerCase() === nombreRechazado.toLowerCase()) { textoAyuda = 'Ese nombre ya lo usa alguien. Prueba otro.'; mal = true; }
+  else if (nombreTocado && nombre.length > 0 && nombre.length < 2) { textoAyuda = 'Escribe al menos 2 letras'; mal = true; }
+  else if (nombreTocado && nombre.length >= 2 && !valido) { textoAyuda = 'Solo letras, números, espacio, punto o guion'; mal = true; }
+  ayuda.textContent = textoAyuda;
+  ayuda.classList.toggle('mal', mal);
+  $('reg-nombre').setAttribute('aria-invalid', String(mal));
+
+  const color = colorElegido ? document.querySelector(`#reg-colores input[value="${colorElegido}"]`)?.closest('.color')?.querySelector('.nombre-color')?.textContent : '';
+  const muestra = $('reg-muestra');
+  muestra.hidden = !colorElegido;
+  if (colorElegido) muestra.style.background = colorElegido;
+  let resumen;
+  if (!valido && !colorElegido) resumen = 'Escribe tu nombre y elige un color';
+  else if (!valido) resumen = 'Falta tu nombre (mínimo 2 letras)';
+  else if (!colorElegido) resumen = `Hola, <b>${escapar(nombre)}</b>. Ahora elige un color`;
+  else resumen = `Entrarás como <b>${escapar(nombre)}</b> · ${escapar(color || '')}`;
+  $('reg-resumen').innerHTML = resumen;
+  $('reg-enviar').disabled = !(valido && colorElegido) || mal;
 }
 
 function ocultarRegistro() {
@@ -524,6 +575,7 @@ async function cargarColores() {
         <span class="cuadro" style="background:${c.hex}"></span>
         <span class="nombre-color">${escapar(c.nombre)}</span>
       </label>`).join('');
+    validarRegistro();
   } catch (e) {
     mostrarErrorRegistro(mensaje(e.codigo));
   }
@@ -536,23 +588,33 @@ function mostrarErrorRegistro(texto) {
 
 async function enviarRegistro(e) {
   e.preventDefault();
+  nombreTocado = true;
   const nombre = $('reg-nombre').value.trim().replace(/\s+/g, ' ');
-  if (!NOMBRE_RE.test(nombre)) { mostrarErrorRegistro(mensaje('nombre_invalido')); $('reg-nombre').focus(); return; }
-  if (!colorElegido) { mostrarErrorRegistro('Elige un color.'); return; }
+  if (!NOMBRE_RE.test(nombre)) { validarRegistro(); $('reg-nombre').focus(); return; }
+  if (!colorElegido) { validarRegistro(); return; }
   const boton = $('reg-enviar');
   boton.disabled = true;
   boton.textContent = 'Entrando…';
   mostrarErrorRegistro('');
   try {
     const yo = await juego.registrar(nombre, colorElegido);
+    // Si vino desde las gafas (vr.html?sala=…), regresar allá con la misma sala.
+    const volver = new URLSearchParams(location.search).get('volver');
+    if (volver && /^vr\.html(\?sala=\d{4})?$/.test(volver)) { location.href = volver; return; }
     ocultarRegistro();
     cintillo(`Bienvenido, <b>${escapar(yo.nombre)}</b>. Toca un país para conquistarlo`, yo.color, 3200);
   } catch (err) {
+    if (err.codigo === 'nombre_ocupado' || err.codigo === 'nombre_invalido') {
+      nombreRechazado = err.codigo === 'nombre_ocupado' ? nombre : null;
+      // El error se ve junto al campo Y junto al botón; además lleva el foco al nombre.
+      $('reg-nombre').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      $('reg-nombre').focus();
+    }
     mostrarErrorRegistro(mensaje(err.codigo));
     if (err.codigo === 'color_ocupado') { colorElegido = null; ultimaPaleta = ''; cargarColores(); }
   } finally {
-    boton.disabled = false;
     boton.textContent = 'Entrar al juego';
+    validarRegistro();
   }
 }
 

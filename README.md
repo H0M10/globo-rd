@@ -8,6 +8,7 @@ Carrera multijugador para la exposición de **Amazon RDS con PostgreSQL**: cada 
 | Proyector con QR | https://h0m10.github.io/globo-rd/?proyector |
 | Realidad aumentada / virtual | https://h0m10.github.io/globo-rd/vr.html |
 | **Administración** (con contraseña) | https://h0m10.github.io/globo-rd/admin/ |
+| Control de las gafas VR (en la laptop) | https://h0m10.github.io/globo-rd/control.html |
 
 - **Página:** GitHub Pages (carpeta `docs/`)
 - **API:** AWS Lambda (carpeta `api/`)
@@ -39,6 +40,7 @@ globo-rds/
    3. `sql/03_usuario_app.sql` → **antes de ejecutarlo**, cambia `CAMBIA_ESTA_CONTRASENA` por una contraseña fuerte. Crea el usuario `globo_app`. Anota esa contraseña.
    4. `sql/05_rondas.sql` → **modo carrera**: rondas con cronómetro, países sin límite y reinicio de contadores.
    5. `sql/06_liberar.sql` → para quedarte un país ajeno primero hay que **liberarlo** y luego conquistarlo; paleta para el mapa oscuro.
+   6. `sql/07_salas.sql` → salas para emparejar la **laptop (control con el mouse)** con el **celular en las gafas VR**.
 4. Comprueba: `SELECT count(*) FROM paises;` debe dar **177**, `SELECT count(*) FROM colores;` debe dar **36** y `SELECT fase_ronda();` debe dar **libre**.
 
 ## Paso 2 · Probar en tu laptop (opcional, pero recomendado)

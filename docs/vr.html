@@ -31,6 +31,7 @@
   <section id="xr-inicio" class="xr-inicio">
     <h1>Pon el mundo<br>sobre la mesa</h1>
     <p id="xr-yo" class="xr-yo"></p>
+    <p id="xr-enlace" class="xr-enlace" hidden></p>
     <div class="xr-botones">
       <button type="button" id="btn-ar" class="boton" hidden>Ver en mi cuarto (AR)</button>
       <button type="button" id="btn-vr" class="boton secundario" hidden>Entrar a realidad virtual</button>
@@ -41,24 +42,23 @@
       <li><b>Arrastra</b> para girar · <b>pellizca</b> para agrandar</li>
     </ul>
     <p id="xr-soporte" class="xr-soporte"></p>
+    <p class="xr-soporte">¿Tienes gafas para celular? Abre <b>control.html</b> en la laptop y escanea su QR: controlarás el globo con el mouse.</p>
   </section>
 
   <p id="ar-indicacion" class="ar-indicacion" hidden></p>
 
   <section id="ficha" class="ficha" hidden aria-live="polite">
-    <div class="ficha-cabeza">
-      <div>
-        <p class="ficha-continente" id="ficha-continente"></p>
-        <h2 id="ficha-nombre"></h2>
-      </div>
-      <button type="button" class="cerrar" id="ficha-cerrar" aria-label="Cerrar">×</button>
+    <div class="ficha-info">
+      <h2 id="ficha-nombre"></h2>
+      <p id="ficha-dueno" class="ficha-dueno"></p>
     </div>
-    <p id="ficha-dueno" class="ficha-dueno"></p>
-    <button type="button" id="ficha-accion" class="boton" hidden></button>
+    <button type="button" id="ficha-accion" class="boton boton-compacto" hidden></button>
+    <button type="button" class="cerrar" id="ficha-cerrar" aria-label="Cerrar">×</button>
   </section>
 
   <div id="ar-controles" class="ar-controles" hidden>
-    <button type="button" class="boton secundario" id="ar-colocar">Poner en la mesa</button>
+    <button type="button" class="boton secundario" id="ar-frente">Al frente</button>
+    <button type="button" class="boton secundario" id="ar-colocar">En la mesa</button>
     <button type="button" class="boton" id="ar-salir">Salir</button>
   </div>
 

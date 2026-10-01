@@ -59,4 +59,7 @@ export const api = {
   reclamar: (token, iso) => pedir('/reclamar', { cuerpo: { token, iso } }),
   liberar: (token, iso) => pedir('/liberar', { cuerpo: { token, iso } }),
   admin: (clave, accion, extra = {}) => pedir('/admin', { cuerpo: { clave, accion, ...extra } }),
+  salaCrear: (oferta) => pedir('/salas', { cuerpo: { oferta } }),
+  salaLeer: (codigo) => pedir(`/salas?codigo=${encodeURIComponent(codigo)}`),
+  salaResponder: (codigo, respuesta) => pedir('/salas/respuesta', { cuerpo: { codigo, respuesta } }),
 };
