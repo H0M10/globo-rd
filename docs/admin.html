@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Globo RDS · Admin</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600;700&family=JetBrains+Mono:wght@500&display=swap">
+<link rel="stylesheet" href="css/app.css">
+<style>
+  body { overflow: auto; }
+  .admin { max-width: 520px; margin: 0 auto; padding: calc(env(safe-area-inset-top, 0px) + 24px) 16px 40px; display: flex; flex-direction: column; gap: 16px; }
+  .caja { background: var(--superficie-solida); border: 1px solid var(--linea); border-radius: 16px; padding: 18px; display: flex; flex-direction: column; gap: 10px; }
+  .caja input { min-height: 46px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--linea); background: rgba(255,255,255,.06); font-size: 16px; }
+  .fila { display: flex; gap: 8px; flex-wrap: wrap; }
+  .fila > * { flex: 1 1 140px; }
+  #salida { white-space: pre-wrap; font-family: var(--mono); font-size: 13px; color: var(--suave); }
+  .peligro { background: #B22222 !important; color: #fff !important; }
+</style>
+</head>
+<body>
+<main class="admin">
+  <div>
+    <p class="eyebrow">Solo para el equipo</p>
+    <h1>Administrar el Globo RDS</h1>
+  </div>
+
+  <section class="caja">
+    <label for="clave"><b>Clave de administrador</b> (la variable ADMIN_KEY de la Lambda)</label>
+    <input id="clave" type="password" autocomplete="off">
+    <button type="button" id="probar" class="boton-principal secundario">Probar conexión con la API</button>
+  </section>
+
+  <section class="caja">
+    <h2>Reglas</h2>
+    <label for="max">Máximo de países por persona</label>
+    <input id="max" type="number" min="1" max="50" value="5" inputmode="numeric">
+    <div class="fila">
+      <button type="button" id="guardar-max" class="boton-principal">Guardar máximo</button>
+    </div>
+    <div class="fila">
+      <button type="button" id="abrir" class="boton-principal">Abrir juego</button>
+      <button type="button" id="cerrar" class="boton-principal secundario">Cerrar juego</button>
+    </div>
+  </section>
+
+  <section class="caja">
+    <h2>Reiniciar</h2>
+    <p class="nota">Borra jugadores, reclamos y bitácora. Los países y colores se conservan.</p>
+    <label><input type="checkbox" id="confirmar"> Sí, quiero borrar todo</label>
+    <button type="button" id="reiniciar" class="boton-principal peligro">Reiniciar juego</button>
+  </section>
+
+  <section class="caja">
+    <h2>Resultado</h2>
+    <p id="salida">—</p>
+  </section>
+
+  <p class="nota">Proyector: abre <a href="index.html?proyector">index.html?proyector</a> en la computadora conectada al proyector.</p>
+</main>
+
+<script src="js/config.js"></script>
+<script type="module">
+  import { api, BASE } from './js/api.js';
+  import { mensaje } from './js/comun.js';
+  const $ = (id) => document.getElementById(id);
+  const salida = (t) => { $('salida').textContent = t; };
+  const clave = () => $('clave').value;
+  async function hacer(fn) {
+    try { salida(JSON.stringify(await fn(), null, 2)); }
+    catch (e) { salida(`${mensaje(e.codigo)} (${e.codigo})`); }
+  }
+  $('probar').onclick = () => hacer(async () => ({ api: BASE, ...(await api.salud()) }));
+  $('guardar-max').onclick = () => hacer(() => api.admin(clave(), 'config', { max: Number($('max').value) }));
+  $('abrir').onclick = () => hacer(() => api.admin(clave(), 'config', { abierto: true }));
+  $('cerrar').onclick = () => hacer(() => api.admin(clave(), 'config', { abierto: false }));
+  $('reiniciar').onclick = () => {
+    if (!$('confirmar').checked) { salida('Marca la casilla de confirmación primero.'); return; }
+    hacer(() => api.admin(clave(), 'reiniciar'));
+  };
+</script>
+</body>
+</html>

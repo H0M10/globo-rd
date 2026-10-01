@@ -1,0 +1,16 @@
+{
+  "name": "globo-rds-api",
+  "version": "1.0.0",
+  "private": true,
+  "description": "API del Globo RDS: AWS Lambda + RDS for PostgreSQL",
+  "type": "module",
+  "main": "index.mjs",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "local": "node local.mjs",
+    "zip": "powershell -NoProfile -ExecutionPolicy Bypass -File construir-zip.ps1"
+  },
+  "dependencies": {
+    "pg": "^8.13.0"
+  }
+}

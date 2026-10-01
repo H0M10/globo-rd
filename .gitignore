@@ -1,0 +1,9 @@
+# Secretos: NUNCA a GitHub
+api/.env
+.env
+
+# Se generan solos
+api/node_modules/
+api/function.zip
+api/global-bundle.pem
+node_modules/

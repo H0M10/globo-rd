@@ -1,0 +1,2 @@
+# Los scripts de bash deben conservar saltos de línea de Linux
+*.sh text eol=lf

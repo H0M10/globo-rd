@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#070D1A">
+<title>Globo RDS · VR</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600;700&family=JetBrains+Mono:wght@500&display=swap">
+<link rel="stylesheet" href="css/app.css">
+<link rel="stylesheet" href="css/vr.css">
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://esm.sh/three@0.176.0",
+    "three/": "https://esm.sh/three@0.176.0/",
+    "three/addons/": "https://esm.sh/three@0.176.0/examples/jsm/",
+    "three-globe": "https://esm.sh/three-globe@2?external=three"
+  }
+}
+</script>
+</head>
+<body>
+
+<div id="escena" class="globo" aria-label="Globo en 3D para realidad virtual y aumentada"></div>
+
+<!-- Esta capa también se muestra DENTRO de la realidad aumentada (WebXR DOM Overlay) -->
+<div id="ui" class="ui-vr">
+  <header class="barra">
+    <a href="index.html" class="boton-redondo" id="vr-volver">← Volver</a>
+    <div id="conexion" class="conexion" data-estado="conectando" role="status">
+      <span class="conexion-punto"></span><span id="conexion-texto">Conectando…</span>
+    </div>
+  </header>
+
+  <section id="vr-inicio" class="vr-inicio">
+    <p class="eyebrow">Globo RDS · WebXR</p>
+    <h1>Realidad virtual y aumentada</h1>
+    <p id="vr-yo" class="nota"></p>
+    <div class="vr-botones">
+      <button type="button" id="btn-vr" class="boton-principal" hidden>Entrar a realidad virtual</button>
+      <button type="button" id="btn-ar" class="boton-principal" hidden>Ver el globo en mi cuarto (AR)</button>
+    </div>
+    <p id="vr-soporte" class="nota"></p>
+  </section>
+
+  <section id="vr-hoja" class="hoja" hidden>
+    <div class="hoja-fila">
+      <div>
+        <p class="eyebrow" id="vr-continente"></p>
+        <h2 id="vr-nombre"></h2>
+      </div>
+      <button type="button" class="cerrar" id="vr-cerrar" aria-label="Quitar selección">×</button>
+    </div>
+    <p id="vr-dueno" class="hoja-dueno"></p>
+    <button type="button" id="vr-accion" class="boton-principal"></button>
+  </section>
+
+  <div id="ar-controles" class="ar-controles" hidden>
+    <button type="button" class="boton-redondo" id="ar-izq" aria-label="Girar a la izquierda">⟲</button>
+    <button type="button" class="boton-redondo" id="ar-salir">Salir de AR</button>
+    <button type="button" class="boton-redondo" id="ar-der" aria-label="Girar a la derecha">⟳</button>
+  </div>
+
+  <div id="avisos" class="avisos" aria-live="polite"></div>
+</div>
+
+<div id="cargando" class="cargando"><p>Cargando el mundo…</p></div>
+
+<script src="js/config.js"></script>
+<script type="module" src="js/vr.js"></script>
+</body>
+</html>

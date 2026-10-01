@@ -1,0 +1,24 @@
+/* Capa de interfaz de la página VR/AR (se suma a app.css) */
+.ui-vr { position: fixed; inset: 0; pointer-events: none; }
+.ui-vr > * { pointer-events: auto; }
+.ui-vr .barra { pointer-events: none; }
+.ui-vr .barra > * { pointer-events: auto; }
+
+.vr-inicio {
+  position: fixed; left: 12px; right: 12px; bottom: calc(env(safe-area-inset-bottom, 0px) + 12px);
+  margin: 0 auto; max-width: 520px;
+  background: var(--superficie); border: 1px solid var(--linea); border-radius: 20px;
+  padding: 18px; display: flex; flex-direction: column; gap: 10px;
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+}
+.vr-inicio h1 { font-size: 24px; }
+.vr-botones { display: flex; flex-direction: column; gap: 8px; }
+
+.ar-controles {
+  position: fixed; left: 0; right: 0; top: calc(env(safe-area-inset-top, 0px) + 64px);
+  display: flex; justify-content: center; gap: 10px;
+}
+
+/* Mientras hay una sesión inmersiva, solo quedan visibles los controles de AR y la hoja */
+body.en-xr .vr-inicio,
+body.en-xr #vr-volver { display: none !important; }
